@@ -5,7 +5,10 @@ Publish Markdown files to a Confluence wiki.
 **Status: pre-MVP.** The rewrite is in progress and is tracked on the project board.
 The command line interface carries the flags and environment variables below;
 conversion and publishing arrive with later issues, so `md2conf` currently parses
-its arguments, reports the Confluence site it resolved and stops.
+its arguments, validates the Confluence site they point at, and stops. A wrong or
+missing argument is reported on standard error with the usage and exit code 2; the
+options that were parsed and the site that was resolved are logged at
+`--loglevel debug`.
 
 ## Upstream
 
