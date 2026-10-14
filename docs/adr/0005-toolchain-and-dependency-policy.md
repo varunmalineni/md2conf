@@ -1,6 +1,6 @@
 # ADR 0005: Toolchain and dependency policy
 
-- Status: Proposed (pending board acceptance of the ZER-28 plan)
+- Status: Accepted (board accepted the ZER-28 plan, 2026-10-14); amended by ADR 0006
 - Context issues: ZER-28
 
 ## Context
