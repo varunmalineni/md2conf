@@ -1,0 +1,36 @@
+{
+  "name": "md2conf",
+  "version": "0.0.0",
+  "description": "Publish Markdown files to a Confluence wiki",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "md2conf": "dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "node": ">=22.15"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.12.0",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.4"
+  }
+}
