@@ -23,6 +23,52 @@ $ npx md2conf --version
 0.0.0
 ```
 
+## Document properties
+
+_md2conf_ reads a page ID, a space key and a `generated-by` note from HTML comments, and the
+rest of the page settings from YAML or JSON front-matter (the front-matter itself may also be
+wrapped in an HTML comment). The comments are the same as upstream's:
+
+```markdown
+<!-- confluence-page-id: 19840101 -->
+<!-- confluence-space-key: SPACE -->
+<!-- generated-by: This page has been generated with md2conf. -->
+```
+
+The front-matter keys, with upstream's spelling:
+
+```yaml
+---
+# page title; otherwise the first top-level heading is used
+title: 'Example document'
+# Confluence page ID, also accepted as confluence_page_id
+page_id: '19840101'
+# Confluence space key, also accepted as confluence_space_key
+space_key: SPACE
+# page labels
+tags: ['markdown', 'md']
+# false keeps the page content in Confluence only
+synchronized: true
+# page properties to apply
+properties:
+  content-appearance-published: full-width
+# layout options for this page
+layout:
+  alignment: left
+  image:
+    alignment: left
+    max_width: 640
+  table:
+    width: 640
+    # or responsive (default)
+    display_mode: fixed
+---
+```
+
+A key the scanner does not know is ignored, and reported in the debug log. Keys that upstream
+supports but this release does not yet, such as `folder_id` for Confluence folders, are ignored
+the same way.
+
 ## Development
 
 ```console
