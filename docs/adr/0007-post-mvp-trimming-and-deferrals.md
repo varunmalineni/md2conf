@@ -34,19 +34,33 @@ logger is Python's `logging`; we have no logging setup yet, because C7 ports `__
    the logging setup and may route it through the project's logger, which is a change inside
    `scanner.ts` only.
 4. **Front-matter is read with PyYAML's YAML 1.1 dialect, and scalars are coerced the way cattrs
-   coerces them.** `yaml` parses the front-matter with `version: '1.1'` and `stringKeys`, so
-   `yes` is a boolean, `007` is octal, `1_000` is one thousand and a mapping key is the text the
-   author wrote, as PyYAML reads them. The scanner then coerces a scalar to the type of the field
-   it fills, the way cattrs does: a number or a date becomes a string (`page_id: 12345` is the
-   page ID 12345), a float truncates to an integer, `0` and the empty string are false, and a
-   single scalar becomes a one-element list. Two Python artefacts are deliberately not copied:
-   - a boolean reads as `true` in a string field, where Python's `str(True)` is `True`;
-   - `tags: markdown` is one tag, where cattrs iterates the string and produces one tag per
-     character.
+   coerces them.** `yaml` parses the front-matter with `version: '1.1'`, so `yes` is a boolean,
+   `007` is octal, `1_000` is one thousand and `0o17` stays a string, as PyYAML reads them. The
+   scanner then coerces a scalar to the type of the field it fills, the way cattrs does: a number
+   or a date becomes a string (`page_id: 12345` is the page ID 12345), a float truncates to an
+   integer, `0` and the empty string are false, and a single scalar becomes a one-element list.
 
-   Neither is a behaviour anyone wants, and both only show up in a document that is already
-   wrong. A YAML 1.1 `y` or `n` is a boolean here and a string in PyYAML, which makes
-   `synchronized: n` false here and true upstream.
+   The dialect is the largest source of agreement and the rest of the list below is what is left
+   over. These are the differences from cattrs and PyYAML we know of, each one measured by running
+   both implementations over the same inputs; it is not a promise that no other one exists, and a
+   later issue that finds another should add it here:
+   - a boolean in a string field reads `true`, where Python's `str(True)` is `True`;
+   - `tags: markdown` is one tag, where cattrs iterates the string and gives one tag per character;
+   - a YAML 1.1 `y` or `n` is a boolean here and a string in PyYAML, so `synchronized: n` is false
+     here and true upstream;
+   - `1e3` is a number here and a string in PyYAML, which does not accept an exponent without a
+     point: `page_id: 1e3` is the page ID 1000, and `max_width: 1e3` is accepted where cattrs
+     rejects the string;
+   - a mapping key is the text the author wrote, which is why `stringKeys` is set: it keeps a key
+     such as `n` or `on` instead of turning it into `False` or `True` as PyYAML does;
+   - a list or a mapping in a string field is an error here, where Python stringifies it
+     (`title: [a]` is the string `"['a']"` upstream);
+   - a timestamp with no time zone in a string field gains a `+00:00` suffix, where Python prints
+     the value as written.
+
+   Six of the seven only show up in a document that is already wrong. Two of them, the boolean
+   spelling and the one-character tags, are deliberate: neither is a behaviour anyone wants, and
+   each is a one-line change if a later decision wants strict parity.
 
 5. **Where upstream relies on a library we do not port, the module owns the equivalent code.**
    Upstream validates front-matter with `json_to_object` (cattrs), and ADR 0006 replaces
@@ -86,6 +100,10 @@ logger is Python's `logging`; we have no logging setup yet, because C7 ports `__
 - The front-matter dialect is PyYAML's, not `yaml`'s default. A front-matter file that relies on
   a YAML 1.1 reading keeps that reading; one that relies on a YAML 1.2 reading (an unquoted
   `2024-01-01` staying a string) may differ, and the test suite pins the cases.
+- A front-matter block that is not a mapping is dropped from the document, exactly as upstream
+  drops it, and leaves the start line at 1 because no properties came from it.
+- The differences listed in decision 4 are the known cost of the dialect; a document written for
+  upstream can still read differently in one of them, and each is one line to change.
 - Ported tests cover only MVP behaviour, so a later issue that adds a feature also has to add
   its test.
 - An unsupported key or comment in a document is silently dropped from the result and shows up

@@ -47,11 +47,12 @@ export class FrontMatterProperties {
 }
 
 // No `m` flag: the leading `^` then anchors to the start of the text, as Python's `\A` does,
-// and the end of the text matches only at the very end (Python's `\Z`). The captured block
-// ends after the newline that precedes the closing delimiter, as it does with Python's
-// MULTILINE `^---`, because that newline is part of the block (`inner_line_count`).
-const FRONTMATTER_REGEXP = /^---\n(.+?\n)---(?:\n|$)/s;
-const FRONTMATTER_COMMENT_REGEXP = /^<!--\n(.+?\n)-->(?:\n|$)/s;
+// and the end of the text matches only at the very end (Python's `\Z`). The closing delimiter
+// is matched as the line `\n---` (Python's MULTILINE `^---`, whose `^` sits after the newline),
+// so the captured block keeps that newline: `inner_line_count` counts it, and an empty block
+// whose content is a single newline still matches.
+const FRONTMATTER_REGEXP = /^---\n(.*\n)---(?:\n|$)/s;
+const FRONTMATTER_COMMENT_REGEXP = /^<!--\n(.*\n)-->(?:\n|$)/s;
 
 // PyYAML's `safe_load` reads YAML 1.1, where `yes` is a boolean, `007` is octal and `1_000`
 // is one thousand; YAML 1.2 would read all three as something else. Mapping keys stay the

@@ -312,10 +312,11 @@ export class Scanner {
     bodyProps.spaceKey = spaceKey ?? undefined;
     bodyProps.generatedBy = generatedBy ?? undefined;
 
-    // extract front-matter
+    // extract front-matter; a block that is not a mapping is dropped from the document and
+    // yields no properties, as upstream does
     const [frontmatter, remaining] = extractFrontmatterJson(body);
     if (frontmatter === null) {
-      return new ScannedDocument(bodyProps, body, 1);
+      return new ScannedDocument(bodyProps, remaining, 1);
     }
 
     const frontmatterProps = documentPropertiesFromJson(frontmatter.data);

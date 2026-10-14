@@ -176,6 +176,30 @@ body
     expect(document.text).toBe(text);
     expect(document.startLineNumber).toBe(1);
   });
+
+  // Upstream takes the matched block out of the document whether or not it is a mapping, and
+  // leaves the start line at 1 because no properties came from it.
+  it('drops an empty front-matter block', () => {
+    const document = new Scanner().parse('---\n\n---\nx\n');
+
+    expect(document.properties.title).toBeUndefined();
+    expect(document.text).toBe('x\n');
+    expect(document.startLineNumber).toBe(1);
+  });
+
+  it('drops a front-matter block that is a list', () => {
+    const document = new Scanner().parse('---\n- a\n- b\n---\nx\n');
+
+    expect(document.text).toBe('x\n');
+    expect(document.startLineNumber).toBe(1);
+  });
+
+  it('drops a front-matter comment block that is a scalar', () => {
+    const document = new Scanner().parse('<!--\na note\n-->\nx\n');
+
+    expect(document.text).toBe('x\n');
+    expect(document.startLineNumber).toBe(1);
+  });
 });
 
 describe('Scanner front-matter scalars', () => {
