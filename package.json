@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "md2conf": "dist/cli/main.js"
+    "md2conf": "dist/bin.js"
   },
   "files": [
     "dist",

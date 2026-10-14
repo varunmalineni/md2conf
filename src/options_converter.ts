@@ -7,6 +7,14 @@
 // Upstream declares these as mutable data classes: the converter replaces
 // `converter_options.layout` with the one from front-matter.
 
+import {
+  booleanOption,
+  compositeOption,
+  type ArgumentOption,
+  type OptionValueType,
+  valueOption,
+} from './clio.js';
+
 /** Alignment for block-level content. */
 export type ContentAlignment = 'center' | 'left' | 'right';
 
@@ -17,12 +25,31 @@ export type TableDisplayMode = 'responsive' | 'fixed';
 export type DiagramOutputFormat = 'png' | 'svg';
 
 /**
+ * Upstream declares `Literal["center", "left", "right", None]`; the `None` member
+ * is the absence of a value and cannot be spelled on a command line, so the
+ * command line offers the three alignment names, as it does upstream in practice.
+ */
+const contentAlignment: OptionValueType = {
+  type: 'choice',
+  choices: ['center', 'left', 'right'],
+};
+
+/**
  * Image layout options on a Confluence page.
  *
  * @param alignment Alignment for block-level images and formulas.
  * @param maxWidth Maximum display width for images [px]. Wider images are scaled down for page display. Original size kept for full-size viewing.
  */
 export class ImageLayoutOptions {
+  static readonly fields: readonly ArgumentOption[] = [
+    valueOption('alignment', contentAlignment, 'Alignment for block-level images and formulas.'),
+    valueOption(
+      'maxWidth',
+      { type: 'integer' },
+      'Maximum display width for images [px]. Wider images are scaled down for page display.',
+    ),
+  ];
+
   constructor(
     public alignment?: ContentAlignment,
     public maxWidth?: number,
@@ -36,6 +63,18 @@ export class ImageLayoutOptions {
  * @param displayMode Whether to use fixed or responsive column widths.
  */
 export class TableLayoutOptions {
+  static readonly fields: readonly ArgumentOption[] = [
+    valueOption('width', { type: 'integer' }, 'Maximum table width in pixels.'),
+    valueOption(
+      'displayMode',
+      {
+        type: 'choice',
+        choices: ['responsive', 'fixed'],
+      },
+      'Set table display mode.',
+    ),
+  ];
+
   constructor(
     public width?: number,
     public displayMode: TableDisplayMode = 'responsive',
@@ -52,6 +91,12 @@ export class TableLayoutOptions {
  * @param alignment Default alignment (unless overridden with more specific setting).
  */
 export class LayoutOptions {
+  static readonly fields: readonly ArgumentOption[] = [
+    compositeOption('image', ImageLayoutOptions),
+    compositeOption('table', TableLayoutOptions),
+    valueOption('alignment', contentAlignment, 'Default alignment for block-level content.'),
+  ];
+
   constructor(
     public image: ImageLayoutOptions = new ImageLayoutOptions(),
     public table: TableLayoutOptions = new TableLayoutOptions(),
@@ -78,6 +123,55 @@ export class LayoutOptions {
  * @param layout Layout options for content on a Confluence page.
  */
 export class ConverterOptions {
+  static readonly fields: readonly ArgumentOption[] = [
+    booleanOption(
+      'headingAnchors',
+      'Place an anchor at each section heading with GitHub-style same-page identifiers.',
+      'Omit the extra anchor from section headings. (May break manually placed same-page references.)',
+    ),
+    booleanOption(
+      'forceValidUrl',
+      'Raise an error when relative URLs point to an invalid location.',
+      'Emit a warning but otherwise ignore relative URLs that point to an invalid location.',
+    ),
+    booleanOption(
+      'skipTitleHeading',
+      'Remove the first heading from document body when it is used as the page title (does not apply if title comes from front-matter).',
+      'Keep the first heading in document body even when used as page title.',
+    ),
+    booleanOption(
+      'preferRaster',
+      'Prefer PNG over SVG when both exist.',
+      'Use SVG files directly instead of preferring PNG equivalents.',
+    ),
+    booleanOption(
+      'renderMermaid',
+      'Render Mermaid diagrams as image files. (Installed utility required to convert.)',
+      'Upload Mermaid diagram sources as Confluence page attachments. (Marketplace app required to display.)',
+    ),
+    valueOption(
+      'diagramOutputFormat',
+      { type: 'choice', choices: ['png', 'svg'] },
+      'Format for rendering Mermaid and draw.io diagrams.',
+    ),
+    booleanOption(
+      'taskLists',
+      'Transform GitHub/GitLab-style task lists into Confluence task list objects.',
+      'Keep task lists as regular itemized lists.',
+    ),
+    booleanOption(
+      'usePanel',
+      'Transform admonitions and alerts into a Confluence custom panel.',
+      'Use standard Confluence macro types for admonitions and alerts (info, tip, note and warning).',
+    ),
+    booleanOption(
+      'forceValidLanguage',
+      'Only allow supported languages in code blocks (unsupported languages are ignored)',
+      'Use unknown language names as-is (Confluence may still highlight code).',
+    ),
+    compositeOption('layout', LayoutOptions),
+  ];
+
   constructor(
     public headingAnchors = false,
     public forceValidUrl = true,
