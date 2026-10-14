@@ -1,4 +1,4 @@
-# ADR 0007: Named entities, blank text and what a parse error can say
+# ADR 0009: Named entities, blank text and what a parse error can say
 
 - Status: Accepted (Engineer 1 on ZER-30, 2026-10-14)
 - Context issues: ZER-30
