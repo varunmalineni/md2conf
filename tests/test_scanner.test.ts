@@ -200,6 +200,39 @@ body
     expect(document.text).toBe('x\n');
     expect(document.startLineNumber).toBe(1);
   });
+
+  // The block ends at the first closing delimiter, as Python's lazy `.+?` does; a `---` rule or
+  // a `-->` later in the body belongs to the body and must not be pulled into the block.
+  it('ends front-matter at the first closing delimiter', () => {
+    const document = new Scanner().parse(`---
+title: X
+---
+body
+
+---
+
+rule
+`);
+
+    expect(document.properties.title).toBe('X');
+    expect(document.text.trim()).toBe('body\n\n---\n\nrule');
+    expect(document.startLineNumber).toBe(4);
+  });
+
+  it('ends a comment front-matter block at the first closing delimiter', () => {
+    const document = new Scanner().parse(`<!--
+title: X
+-->
+body
+
+-->
+more
+`);
+
+    expect(document.properties.title).toBe('X');
+    expect(document.text.trim()).toBe('body\n\n-->\nmore');
+    expect(document.startLineNumber).toBe(4);
+  });
 });
 
 describe('Scanner front-matter scalars', () => {
