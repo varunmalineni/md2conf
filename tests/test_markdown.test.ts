@@ -252,20 +252,49 @@ describe('markdownToHtml', () => {
     );
   });
 
-  it('numbers footnotes in the order they are first referenced', () => {
-    // Python-Markdown numbers in the order the definitions appear (ADR 0007 §5); the
-    // plugin numbers in the order they are referenced, and drops a definition that is
-    // never referenced. Both are pinned here so the difference is visible.
+  it('numbers footnotes in the order their definitions appear', () => {
     expect(markdownToHtml('Text[^b] and [^a].\n\n[^a]: A\n[^b]: B\n')).toBe(
-      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">1</a></sup> and ' +
-        '<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">2</a></sup>.</p>\n' +
+      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">2</a></sup> and ' +
+        '<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">1</a></sup>.</p>\n' +
         '<div class="footnote">\n<hr />\n<ol>\n' +
-        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
         '<li id="fn:a">\n<p>A&#160;<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
         '</ol>\n</div>\n',
     );
+  });
+
+  it('keeps a definition nothing references, with one back-reference', () => {
     expect(markdownToHtml('Text[^used].\n\n[^u]: Never referenced.\n')).toBe(
-      '<p>Text[^used].</p>\n',
+      '<p>Text[^used].</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:u">\n<p>Never referenced.&#160;' +
+        '<a class="footnote-backref" href="#fnref:u" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
+    );
+  });
+
+  it('numbers a footnote referenced from another footnote by its definition order', () => {
+    expect(markdownToHtml('Text[^a].\n\n[^a]: A note about [^b]\n[^b]: B note\n')).toBe(
+      '<p>Text<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">1</a></sup>.</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:a">\n<p>A note about ' +
+        '<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">2</a></sup>&#160;' +
+        '<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:b">\n<p>B note&#160;' +
+        '<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
+    );
+  });
+
+  it('numbers a footnote referenced twice by its definition order', () => {
+    expect(markdownToHtml('Text[^b] and again[^b].\n\n[^a]: A\n[^b]: B\n')).toBe(
+      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">2</a></sup> and again' +
+        '<sup id="fnref2:b"><a class="footnote-ref" href="#fn:b">2</a></sup>.</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:a">\n<p>A&#160;<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a>' +
+        '<a class="footnote-backref" href="#fnref2:b" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
     );
   });
 
@@ -283,6 +312,78 @@ describe('markdownToHtml', () => {
     const source = 'Text[^1]\n\n[^1]: The note.\n';
 
     expect(markdownToHtml(source)).toBe(markdownToHtml(source));
+  });
+});
+
+/**
+ * Link and image URLs, measured against upstream's `markdown_to_html` (md2conf 0.6.4,
+ * Python-Markdown 3.11.1, pymdown-extensions 12.2) on the same input. Upstream writes a
+ * URL into the document as the author wrote it, so every `href` and `src` below is the
+ * string in the Markdown source; markdown-it percent-encodes and punycodes it, which would
+ * send the converter looking for a file that is not there.
+ */
+describe('link and image URLs', () => {
+  it('keeps a destination written in angle brackets, spaces and all', () => {
+    expect(markdownToHtml('[x](<my file.md>)\n')).toBe('<p><a href="my file.md">x</a></p>\n');
+  });
+
+  it('keeps a non-ASCII path and its fragment', () => {
+    expect(markdownToHtml('[x](café.md#Sect)\n')).toBe('<p><a href="café.md#Sect">x</a></p>\n');
+  });
+
+  it('keeps a non-ASCII image source', () => {
+    expect(markdownToHtml('![i](déjà.png)\n')).toBe('<p><img src="déjà.png" alt="i" /></p>\n');
+  });
+
+  it('keeps a non-ASCII reference destination', () => {
+    expect(markdownToHtml('[x][r]\n\n[r]: café.md\n')).toBe('<p><a href="café.md">x</a></p>\n');
+  });
+
+  it('keeps an autolink URL and its text as written', () => {
+    expect(markdownToHtml('<https://e.com/café?q[]=1>\n')).toBe(
+      '<p><a href="https://e.com/café?q[]=1">https://e.com/café?q[]=1</a></p>\n',
+    );
+  });
+
+  it('keeps a linkified URL as written, in the href and in the text', () => {
+    expect(markdownToHtml('bare https://e.com/café end\n')).toBe(
+      '<p>bare <a href="https://e.com/café">https://e.com/café</a> end</p>\n',
+    );
+    expect(markdownToHtml('see https://e.com/a%20b now\n')).toBe(
+      '<p>see <a href="https://e.com/a%20b">https://e.com/a%20b</a> now</p>\n',
+    );
+  });
+
+  it('keeps a non-ASCII host of a mail link out of punycode', () => {
+    expect(markdownToHtml('[x](mailto:me@exämple.com)\n')).toBe(
+      '<p><a href="mailto:me@exämple.com">x</a></p>\n',
+    );
+  });
+
+  it('leaves a destination that is already percent-encoded as it is', () => {
+    expect(markdownToHtml('[x](a%20b.md)\n')).toBe('<p><a href="a%20b.md">x</a></p>\n');
+    expect(markdownToHtml('[x](<a%20b.md>)\n')).toBe('<p><a href="a%20b.md">x</a></p>\n');
+  });
+
+  it('keeps an entity in a destination, as upstream does', () => {
+    expect(markdownToHtml('[x](a&amp;b.md)\n')).toBe('<p><a href="a&amp;b.md">x</a></p>\n');
+  });
+
+  it('rejects the destinations `validateLink` refuses, leaving them as text', () => {
+    expect(markdownToHtml('[x](javascript:alert(1))\n')).toBe('<p>[x](javascript:alert(1))</p>\n');
+    expect(markdownToHtml('[x](vbscript:msgbox(1))\n')).toBe('<p>[x](vbscript:msgbox(1))</p>\n');
+    expect(markdownToHtml('![i](data:text/html;base64,PHNjcmlwdD4=)\n')).toBe(
+      '<p>![i](data:text/html;base64,PHNjcmlwdD4=)</p>\n',
+    );
+  });
+
+  it('escapes `&` and `"` in an attribute, as before', () => {
+    expect(markdownToHtml('[x](https://e.com/?a=1&b=2)\n')).toBe(
+      '<p><a href="https://e.com/?a=1&amp;b=2">x</a></p>\n',
+    );
+    expect(markdownToHtml('![i](déjà.png "a \\" title")\n')).toBe(
+      '<p><img src="déjà.png" alt="i" title="a &quot; title" /></p>\n',
+    );
   });
 });
 
@@ -437,38 +538,74 @@ describe('admonitions', () => {
     );
   });
 
-  it('documents the list and quote shapes that follow markdown-it, not Python-Markdown', () => {
+  it('documents the list shapes that follow markdown-it, not Python-Markdown', () => {
     // Python-Markdown decides what continues a list item differently from CommonMark, and
-    // these three shapes follow from that, not from the marker rule. Each is recorded here
-    // so it is visible rather than implicit; they belong in ADR 0003.
+    // these two shapes follow from that, not from the marker rule. Each is recorded here
+    // so it is visible rather than implicit; both are rows in docs/dialect.md.
     //
-    // The rows for these three live in ZER-62, which asks for docs/dialect.md.
-    // `- a` + a two-space paragraph ends the list upstream, which then makes the marker an
-    // indented code block; we keep the paragraph in the item and open a block.
+    // Row D1: `- a` + a two-space paragraph ends the list upstream, which then makes the
+    // marker an indented code block; we keep the paragraph in the item and open a block.
     expect(markdownToHtml('- a\n\n  para\n\n    !!! note\n        body\n')).toContain(
       '<p>para</p>\n<div class="admonition note">',
     );
-    // A three-space nested list is not nested upstream, so its marker is code.
+    // Row D2: a three-space nested list is not nested upstream, so its marker is code.
     expect(markdownToHtml('1. a\n   - b\n\n        !!! note\n            body\n')).toContain(
       '<div class="admonition note">',
     );
   });
 
   it('opens a block at the margin of a quote inside a list item, as upstream does', () => {
-    // This was a difference until the walk that decides a later block stopped at the item's
-    // own marker line; the row for it in ZER-62 can go.
+    // Python-Markdown closes the quote at the marker; CommonMark keeps the marker in the
+    // quote's paragraph. A blank line in the item is what tells the two apart.
     expect(markdownToHtml('1. a\n\n    > q\n    !!! note\n      body\n')).toBe(
       '<ol>\n<li>\n<p>a</p>\n<blockquote>\n<p>q</p>\n</blockquote>\n' +
         '<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n<p>body</p>\n</li>\n</ol>\n',
     );
+    expect(markdownToHtml('1. a\n\n    > q\n    !!! note\n        body\n')).toBe(
+      '<ol>\n<li>\n<p>a</p>\n<blockquote>\n<p>q</p>\n</blockquote>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n</li>\n</ol>\n',
+    );
   });
 
-  it('leaves a marker on the first line of a list item as the item’s text', () => {
-    // Upstream opens a block here, because the marker is the first thing in the item;
-    // markdown-it hands the item's first line to the paragraph rule before any block rule
-    // sees it, so the marker stays text. Recorded here so it is visible, not implicit;
-    // the row for it is asked for in ZER-62.
-    expect(markdownToHtml('- !!! note\n    body\n')).toBe('<ul>\n<li>!!! note\nbody</li>\n</ul>\n');
+  it('opens an admonition on the first line of a list item, as upstream does', () => {
+    // Python-Markdown parses the item's text as one block, in which the marker line
+    // starts at the item's margin, so the marker opens the item's first block.
+    expect(markdownToHtml('- !!! note\n')).toBe(
+      '<ul>\n<li>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('1. !!! note\n')).toBe(
+      '<ol>\n<li>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n</li>\n</ol>\n',
+    );
+    // A blank line ends the item's block, so what follows is a block of the item's own.
+    expect(markdownToHtml('1. !!! note\n\n    body\n')).toBe(
+      '<ol>\n<li>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n<p>body</p>\n</li>\n</ol>\n',
+    );
+    expect(markdownToHtml('- !!! note "T"\n\n    para\n')).toBe(
+      '<ul>\n<li>\n<div class="admonition note">\n<p class="admonition-title">T</p>\n</div>\n' +
+        '<p>para</p>\n</li>\n</ul>\n',
+    );
+  });
+
+  it('leaves the body of an admonition in a list item the text of the item, as upstream does', () => {
+    // The item is one block, and Python-Markdown parses a block inside a list item without
+    // wrapping its text in `<p>`; a block quote sets a state of its own and keeps its `<p>`.
+    expect(markdownToHtml('- !!! note\n    body\n')).toBe(
+      '<ul>\n<li>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\nbody</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- !!! note\n    - b\n')).toBe(
+      '<ul>\n<li>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<ul>\n<li>b</li>\n</ul>\n</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- !!! note\n    > q\n')).toBe(
+      '<ul>\n<li>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<blockquote>\n<p>q</p>\n</blockquote>\n</div>\n</li>\n</ul>\n',
+    );
+    // The first item of a list that continues the one above it is parsed in the
+    // `looselist` state, which keeps its `<p>`.
+    expect(markdownToHtml('- a\n\n- !!! note\n    body\n')).toBe(
+      '<ul>\n<li>\n<p>a</p>\n</li>\n<li>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n</li>\n</ul>\n',
+    );
   });
 
   it('leaves a marker deeper inside a list item as the item’s text, as upstream does', () => {

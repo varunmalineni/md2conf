@@ -8,12 +8,13 @@
  *
  * Alerts and task lists need no plugin: markdown-it without one already produces the
  * block quotes and list items upstream's converter reads (ADR 0007). Footnotes are parsed
- * by `@mdit/plugin-footnote`, but their render rules are replaced here so the anchors are
- * the ones upstream publishes.
+ * by `@mdit/plugin-footnote`, but their numbering, list and render rules are ours, so the
+ * anchors and the footnote list are the ones upstream publishes.
  *
  * @see https://github.com/hunyadi/md2conf
  * @see docs/adr/0002-markdown-parser-and-conversion-pipeline.md
  * @see docs/adr/0007-markdown-plugins-follow-upstream-vocabulary.md
+ * @see docs/adr/0008-link-and-image-urls-as-written.md
  *
  * `markdown_with_line_numbers` (`--line-numbers`) and emoji rendering are post-MVP and
  * are not ported yet; the ZER-28 plan lists both as non-goals.
@@ -52,14 +53,16 @@ function isSpace(code: number): boolean {
   return code === SPACE || code === TAB;
 }
 
-/** Returns a line with its leading whitespace removed, whatever mix of spaces and tabs. */
+/**
+ * Returns a line without its indentation, whatever mix of spaces and tabs.
+ *
+ * A list item's first line starts at the text that follows the item marker, not at the
+ * marker itself, which is where markdown-it points `tShift`; the rule reads every line
+ * from there.
+ */
 function lineContent(state: StateBlock, line: number): string {
   const end = state.eMarks[line] ?? 0;
-  let pos = state.bMarks[line] ?? 0;
-  while (pos < end && isSpace(state.src.charCodeAt(pos))) {
-    pos += 1;
-  }
-  return state.src.slice(pos, end);
+  return state.src.slice((state.bMarks[line] ?? 0) + (state.tShift[line] ?? 0), end);
 }
 
 /**
@@ -133,11 +136,24 @@ function itemStartLine(state: StateBlock): number | undefined {
 }
 
 /**
+ * True if the line is the line the innermost list item starts on, and so opens the item's
+ * first block.
+ *
+ * Python-Markdown parses the item's text as one block, in which the marker line begins at
+ * the item's margin, so a marker on it opens a block there as it does in a document of its
+ * own. markdown-it tokenizes the item's content with every block rule, the item's marker
+ * line among them.
+ */
+function isItemFirstLine(state: StateBlock, line: number): boolean {
+  return line === itemStartLine(state);
+}
+
+/**
  * True if a blank line inside the enclosing list item precedes this line.
  *
  * Python-Markdown dedents a block that follows a blank line by one tab stop, so a marker
- * in such a block reaches column 0 and opens a block. A marker in the item's *first*
- * block is a lazy line that keeps its indentation, and stays text, whatever precedes the
+ * in such a block reaches column 0 and opens a block. A marker on a later line of the
+ * item's first block runs into the text above it and stays text, whatever precedes the
  * list: the walk therefore stops at the line of the item's marker.
  */
 function followsBlankLineInItem(state: StateBlock, line: number): boolean {
@@ -163,6 +179,8 @@ function followsBlankLineInItem(state: StateBlock, line: number): boolean {
  * which leaves the marker left of the item's margin.
  *
  * - a marker at column 0 ends the list or quote around it and opens a block of its own;
+ * - a marker on the first line of a list item opens the item's first block at the item's
+ *   margin, where Python-Markdown has already stripped the item marker;
  * - a marker inside a list item opens a nested block when it is indented by whole tab
  *   stops and either starts a block or falls outside the item being closed;
  * - everywhere else the marker has to sit at the margin of the block it opens, so a
@@ -180,6 +198,10 @@ function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
       // outside a list.
       return relative === 0;
     }
+    if (isItemFirstLine(state, line)) {
+      // The marker opens the item's first block, whose margin is the item's own.
+      return relative === 0;
+    }
     if (columns < ADMONITION_INDENT || columns % ADMONITION_INDENT !== 0) {
       return false;
     }
@@ -190,6 +212,109 @@ function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
     );
   }
   return relative === 0;
+}
+
+/**
+ * The column a list marker sits at.
+ *
+ * markdown-it reports the content of a line at the item's margin, past the marker, and
+ * rewrites the line's own indent to that margin; Python-Markdown reads the marker where
+ * the author wrote it.
+ */
+function markerColumn(state: StateBlock, line: number): number {
+  const end = (state.bMarks[line] ?? 0) + (state.tShift[line] ?? 0);
+  let pos = state.bMarks[line] ?? 0;
+  let columns = 0;
+  while (pos < end) {
+    const code = state.src.charCodeAt(pos);
+    if (code === TAB) {
+      columns += 4 - (columns % 4);
+    } else if (code === SPACE) {
+      columns += 1;
+    } else {
+      break;
+    }
+    pos += 1;
+  }
+  return columns;
+}
+
+/**
+ * The column Python-Markdown counts the lines of a list item's first block from.
+ *
+ * Its `indent` processor removes one tab stop from a block that starts a tab stop or more
+ * into the line before the list processor reads the block, and the list processor then
+ * drops the item marker from the item's own first line only, so the lines after it keep
+ * the columns of the source. The body of an admonition that opens the item's first block
+ * therefore starts one tab stop into the document, and one more for every whole tab stop
+ * its list is indented by.
+ */
+function itemBodyColumn(state: StateBlock): number {
+  for (let index = state.tokens.length - 1; index >= 0; index -= 1) {
+    const token = state.tokens[index];
+    if (token?.type === 'bullet_list_open' || token?.type === 'ordered_list_open') {
+      const columns = markerColumn(state, token.map?.[0] ?? 0);
+      return columns - (columns % ADMONITION_INDENT);
+    }
+  }
+  return 0;
+}
+
+/**
+ * True if Python-Markdown wraps the paragraphs it parses inside the list item the marker
+ * opens in a `<p>`.
+ *
+ * It parses a whole item in the `list` state, which wraps nothing there, so the body of an
+ * admonition that opens the item's first block is text. The first item of a list that
+ * continues the list above it is parsed in the `looselist` state instead, and keeps its
+ * `<p>`.
+ */
+function wrapsItemParagraphs(state: StateBlock): boolean {
+  const itemStart = itemStartLine(state);
+  if (itemStart === undefined || itemStart === 0 || !state.isEmpty(itemStart - 1)) {
+    return false;
+  }
+  // The item follows a blank line, which leaves its paragraphs wrapped only when its list
+  // has an item already, that is when it continues the list above it rather than starting
+  // one.
+  for (let index = state.tokens.length - 1; index >= 0; index -= 1) {
+    const type = state.tokens[index]?.type;
+    if (type === 'list_item_open') {
+      return true;
+    }
+    if (type === 'bullet_list_open' || type === 'ordered_list_open') {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Leaves the paragraphs Python-Markdown holds as the text of a list item unwrapped.
+ *
+ * markdown-it drops the `<p>` of the blocks a tight item holds directly; the blocks an
+ * admonition holds are a level deeper, where markdown-it keeps them. A block quote sets a
+ * state of its own, so the paragraphs inside one keep theirs.
+ */
+function unwrapParagraphs(state: StateBlock, from: number): void {
+  let quoted = 0;
+  for (let index = from; index < state.tokens.length; index += 1) {
+    const token = state.tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+    if (token.type === 'blockquote_open') {
+      quoted += 1;
+    } else if (token.type === 'blockquote_close') {
+      quoted -= 1;
+    } else if (quoted === 0 && token.type === 'paragraph_open') {
+      token.hidden = true;
+      const close = state.tokens[index + 2];
+      if (close?.type === 'paragraph_close') {
+        close.hidden = true;
+      }
+    }
+  }
 }
 
 /**
@@ -217,14 +342,24 @@ function admonition(
     return true;
   }
 
+  // Python-Markdown takes the body out of the string it is parsing, which starts at the
+  // column the marker sits at. A marker in an item's first block is the one exception:
+  // Python-Markdown drops the item marker from that line and leaves the lines after it as
+  // the author wrote them, so there the body is counted from `itemBodyColumn`, and a blank
+  // line ends the body as it ends any other block.
+  const itemBlock = isItemFirstLine(state, startLine);
+  const bodyColumn = itemBlock ? itemBodyColumn(state) : (state.sCount[startLine] ?? 0);
   const bodyStart = startLine + 1;
   let nextLine = bodyStart;
   while (nextLine < endLine) {
     if (state.isEmpty(nextLine)) {
+      if (itemBlock) {
+        break;
+      }
       nextLine = state.skipEmptyLines(nextLine + 1);
       continue;
     }
-    if ((state.sCount[nextLine] ?? 0) - state.blkIndent < ADMONITION_INDENT) {
+    if ((state.sCount[nextLine] ?? 0) - bodyColumn < ADMONITION_INDENT) {
       break;
     }
     nextLine += 1;
@@ -249,8 +384,10 @@ function admonition(
   state.parentType = 'admonition';
   state.lineMax = nextLine;
   // The body starts at the marker's own margin, so nested rules see the same relative
-  // indentation they would see in a document of its own.
-  state.blkIndent = state.sCount[startLine] ?? 0;
+  // indentation they would see in a document of its own. The body of an item's first
+  // block starts at the column its string had, so that what is left of the author's
+  // indentation stays in the text, as it does upstream.
+  state.blkIndent = bodyColumn;
 
   const { className, title } = admonitionClassAndTitle(match);
   const open = state.push('admonition_open', 'div', 1);
@@ -269,7 +406,11 @@ function admonition(
     state.push('admonition_title_close', 'p', -1);
   }
 
+  const bodyTokens = state.tokens.length;
   state.md.block.tokenize(state, bodyStart, nextLine);
+  if (itemBlock && !wrapsItemParagraphs(state)) {
+    unwrapParagraphs(state, bodyTokens);
+  }
 
   state.push('admonition_close', 'div', -1);
   for (let i = 0; i < oldTShift.length; i++) {
@@ -347,6 +488,137 @@ function renderFootnoteOpen(tokens: Token[], idx: number): string {
   return `<li id="fn:${escapeAttribute(label)}">\n`;
 }
 
+/** One footnote definition, as the plugin's block rule leaves it on the token stream. */
+interface FootnoteDefinition {
+  readonly label: string;
+  readonly tokens: Token[];
+}
+
+/**
+ * Takes the definitions off the token stream and returns them in document order.
+ *
+ * The plugin's block rule wraps the body of every definition in a
+ * `footnote_reference_open` … `footnote_reference_close` group, which its `footnoteTail` core
+ * rule moves to the end of the document. A definition nothing references is on the stream as
+ * well; the plugin drops it because it numbers from `env.footnotes.list`, which the inline
+ * rule fills in on first reference.
+ */
+function takeFootnoteDefinitions(state: StateCore): FootnoteDefinition[] {
+  const definitions: FootnoteDefinition[] = [];
+  let body: Token[] | undefined;
+  let label = '';
+
+  state.tokens = state.tokens.filter((token) => {
+    if (token.type === 'footnote_reference_open') {
+      label = (token as FootNoteToken).meta.label;
+      body = [];
+      return false;
+    }
+    if (token.type === 'footnote_reference_close') {
+      definitions.push({ label, tokens: body ?? [] });
+      body = undefined;
+      return false;
+    }
+    const insideDefinition = body !== undefined;
+    body?.push(token);
+    return !insideDefinition;
+  });
+
+  return definitions;
+}
+
+/** The number a label has in the definition order, which every reference has by construction. */
+function footnoteNumber(numbers: ReadonlyMap<string, number>, label: string): number {
+  const number = numbers.get(label);
+  if (number === undefined) {
+    throw new Error(`footnote ${label} is referenced without a definition`);
+  }
+  return number;
+}
+
+/**
+ * Numbers the references of one run of block tokens and counts them per label.
+ *
+ * A definition can be referenced from another definition's body, so the definitions'
+ * tokens are walked as well as the document's; a back-reference is emitted per count, and
+ * an unreferenced definition still needs the one back-reference upstream gives it.
+ */
+function numberFootnoteReferences(
+  tokens: Token[],
+  numbers: ReadonlyMap<string, number>,
+  counts: Map<string, number>,
+): void {
+  for (const token of tokens) {
+    if (token.type !== 'inline') {
+      continue;
+    }
+    for (const child of token.children ?? []) {
+      if (child.type !== 'footnote_ref') {
+        continue;
+      }
+      const reference = child as FootNoteToken;
+      const { label } = reference.meta;
+      reference.meta = { ...reference.meta, id: footnoteNumber(numbers, label) };
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+  }
+}
+
+/**
+ * Builds the footnote list at the end of the document, replacing the plugin's `footnoteTail`
+ * (ADR 0007 §6).
+ *
+ * Upstream numbers footnotes and lists them in the order their definitions appear, and keeps
+ * a definition nothing references. The plugin makes both choices from `env.footnotes.list`,
+ * which the inline rule fills in on first reference, so it numbers by first reference and
+ * drops an unreferenced definition. Both choices are made here instead: the definitions give
+ * the order and the labels, and the references only give the numbers on the anchors and how
+ * many back-references a definition gets.
+ */
+function footnoteTail(state: StateCore): void {
+  const definitions = takeFootnoteDefinitions(state);
+
+  if (definitions.length === 0) {
+    return;
+  }
+
+  const numbers = new Map(definitions.map(({ label }, index) => [label, index]));
+  const counts = new Map<string, number>();
+
+  numberFootnoteReferences(state.tokens, numbers, counts);
+  for (const definition of definitions) {
+    numberFootnoteReferences(definition.tokens, numbers, counts);
+  }
+
+  state.tokens.push(new state.Token('footnote_block_open', '', 1));
+
+  for (const [id, definition] of definitions.entries()) {
+    const tokens = [...definition.tokens];
+    // Upstream ends a definition with its back-references inside the last paragraph, so a
+    // paragraph that closes the definition waits for them.
+    const paragraphClose = tokens.at(-1)?.type === 'paragraph_close' ? tokens.pop() : undefined;
+    const references = Math.max(counts.get(definition.label) ?? 0, 1);
+
+    const footnoteOpen = new state.Token('footnote_open', '', 1);
+    footnoteOpen.meta = { id, label: definition.label };
+    state.tokens.push(footnoteOpen, ...tokens);
+
+    for (let subId = 0; subId < references; subId += 1) {
+      const footnoteAnchor = new state.Token('footnote_anchor', '', 0);
+      footnoteAnchor.meta = { id, subId, label: definition.label };
+      state.tokens.push(footnoteAnchor);
+    }
+
+    if (paragraphClose !== undefined) {
+      state.tokens.push(paragraphClose);
+    }
+
+    state.tokens.push(new state.Token('footnote_close', '', -1));
+  }
+
+  state.tokens.push(new state.Token('footnote_block_close', '', -1));
+}
+
 /**
  * Builds the converter. Exported for the tests that assert the token stream; the package
  * entry point does not re-export it.
@@ -359,10 +631,18 @@ export function createConverter(): MarkdownItType {
   // Python-Markdown has no inline footnote syntax, so `^[…]` stays literal text.
   md.inline.ruler.disable('footnoteInline');
 
+  // Python-Markdown writes a link or image URL into the document as the author wrote it and
+  // escapes it only when it serializes the attribute. markdown-it percent-encodes and
+  // punycodes it instead, so `converter.ts` would resolve `my%20file.md` or `caf%C3%A9.md`
+  // on disk; keeping the URL as written is what makes the two behave the same.
+  md.normalizeLink = (url) => url;
+  md.normalizeLinkText = (url) => url;
+
   md.block.ruler.before('fence', 'admonition', admonition, {
     alt: ['paragraph', 'reference', 'blockquote', 'list'],
   });
   md.core.ruler.after('inline', 'strikethrough_del', useDelForStrikethrough);
+  md.core.ruler.at('footnoteTail', footnoteTail);
 
   const renderFence = md.renderer.rules.fence;
   if (renderFence === undefined) {
