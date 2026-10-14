@@ -18,15 +18,23 @@ import { footnote } from '@mdit/plugin-footnote';
 import { tasklist } from '@mdit/plugin-tasklist';
 import MarkdownIt, {
   type MarkdownIt as MarkdownItType,
+  type RendererRule,
   type StateBlock,
   type StateCore,
 } from 'markdown-it';
 
-/** Matches an admonition marker line: `!!! type` with an optional quoted title. */
-const ADMONITION_REGEXP = /^!!! ?([\w-]+(?: +[\w-]+)*)(?: +"(.*?)")? *$/;
+/**
+ * Matches an admonition marker line: `!!! type` with an optional quoted title. The type
+ * is a word of letters, digits or underscores, as in Python-Markdown, whose `\w` is
+ * Unicode-aware.
+ */
+const ADMONITION_REGEXP = /^!!! ?([\p{L}\p{N}_-]+(?: +[\p{L}\p{N}_-]+)*)(?: +"(.*?)")? *$/u;
 
 /** An admonition body is indented by one tab stop, as in Python-Markdown. */
-const ADMONITION_INDENT = '    ';
+const ADMONITION_INDENT = 4;
+
+const SPACE = 0x20;
+const TAB = 0x09;
 
 /** Class names upstream's `admonition` extension puts on the element and its title. */
 const ADMONITION_CLASS = 'admonition';
@@ -35,9 +43,47 @@ const ADMONITION_TITLE_CLASS = 'admonition-title';
 /** Fence name whose body is Confluence Storage Format the user wrote. */
 const CSF_LANGUAGE = 'csf';
 
-/** Returns a source line with its indentation intact. */
-function rawLine(state: StateBlock, line: number): string {
-  return state.src.slice(state.bMarks[line] ?? 0, state.eMarks[line] ?? 0);
+function isSpace(code: number): boolean {
+  return code === SPACE || code === TAB;
+}
+
+/** Returns a line with its leading whitespace removed, whatever mix of spaces and tabs. */
+function lineContent(state: StateBlock, line: number): string {
+  const end = state.eMarks[line] ?? 0;
+  let pos = state.bMarks[line] ?? 0;
+  while (pos < end && isSpace(state.src.charCodeAt(pos))) {
+    pos += 1;
+  }
+  return state.src.slice(pos, end);
+}
+
+/**
+ * Removes one tab stop of indentation from a body line in place, the way markdown-it's
+ * own rules remove a block quote marker, so that every rule that reads the body sees it
+ * at the marker's margin and reports source positions of the original document.
+ */
+function dedentLine(state: StateBlock, line: number): void {
+  const end = state.eMarks[line] ?? 0;
+  let pos = state.bMarks[line] ?? 0;
+  let columns = 0;
+  while (pos < end && columns < ADMONITION_INDENT) {
+    const code = state.src.charCodeAt(pos);
+    if (code === TAB) {
+      columns += 4 - (columns % 4);
+    } else if (code === SPACE) {
+      columns += 1;
+    } else {
+      break;
+    }
+    pos += 1;
+  }
+  const content = pos;
+  while (pos < end && isSpace(state.src.charCodeAt(pos))) {
+    pos += 1;
+  }
+  state.bMarks[line] = content;
+  state.tShift[line] = pos - content;
+  state.sCount[line] = (state.sCount[line] ?? 0) - ADMONITION_INDENT;
 }
 
 /**
@@ -69,8 +115,9 @@ function capitalize(word: string): string {
  * Block rule for Python-Markdown's `!!!` admonition syntax.
  *
  * The body is the indented block that follows the marker, dedented by one tab stop and
- * parsed as Markdown, so an admonition nests and holds any block content. As upstream,
- * the rule also ends a paragraph that runs into the marker line.
+ * tokenized in place, so an admonition nests, holds any block content, and keeps the
+ * source line numbers of the document it came from. As upstream, the rule also ends a
+ * paragraph that runs into a marker at the same margin.
  */
 function admonition(
   state: StateBlock,
@@ -78,33 +125,57 @@ function admonition(
   endLine: number,
   silent: boolean,
 ): boolean {
-  const match = ADMONITION_REGEXP.exec(rawLine(state, startLine));
+  // A marker one tab stop into the block belongs to that block's content, not to us.
+  if ((state.sCount[startLine] ?? 0) - state.blkIndent >= ADMONITION_INDENT) {
+    return false;
+  }
+  const match = ADMONITION_REGEXP.exec(lineContent(state, startLine));
   if (match === null) {
+    return false;
+  }
+  // Python-Markdown looks for `!!!` at the start of a block, so a marker that runs into
+  // an indented paragraph line stays part of that paragraph.
+  if (silent && (state.sCount[startLine] ?? 0) !== state.blkIndent) {
     return false;
   }
   if (silent) {
     return true;
   }
 
-  const content: string[] = [];
-  let nextLine = startLine + 1;
+  const bodyStart = startLine + 1;
+  let nextLine = bodyStart;
   while (nextLine < endLine) {
-    const line = rawLine(state, nextLine);
-    if (line.trim() === '') {
-      content.push('');
-      nextLine += 1;
+    if (state.isEmpty(nextLine)) {
+      nextLine = state.skipEmptyLines(nextLine + 1);
       continue;
     }
-    if (!line.startsWith(ADMONITION_INDENT)) {
+    if ((state.sCount[nextLine] ?? 0) - state.blkIndent < ADMONITION_INDENT) {
       break;
     }
-    content.push(line.slice(ADMONITION_INDENT.length));
     nextLine += 1;
   }
-  while (content.at(-1)?.trim() === '') {
-    content.pop();
+
+  const oldParentType = state.parentType;
+  const oldLineMax = state.lineMax;
+  const oldBlkIndent = state.blkIndent;
+  const oldBMarks: number[] = [];
+  const oldSCount: number[] = [];
+  const oldTShift: number[] = [];
+  for (let line = bodyStart; line < nextLine; line++) {
+    oldBMarks.push(state.bMarks[line] ?? 0);
+    oldSCount.push(state.sCount[line] ?? 0);
+    oldTShift.push(state.tShift[line] ?? 0);
+    if (!state.isEmpty(line)) {
+      dedentLine(state, line);
+    }
   }
+
   state.line = nextLine;
+  state.parentType = 'admonition';
+  state.lineMax = nextLine;
+  // The body starts at the marker's own margin, so nested rules see the same relative
+  // indentation they would see in a document of its own.
+  state.blkIndent = state.sCount[startLine] ?? 0;
 
   const { className, title } = admonitionClassAndTitle(match);
   const open = state.push('admonition_open', 'div', 1);
@@ -123,9 +194,18 @@ function admonition(
     state.push('admonition_title_close', 'p', -1);
   }
 
-  state.md.block.parse(`${content.join('\n')}\n`, state.md, state.env, state.tokens);
+  state.md.block.tokenize(state, bodyStart, nextLine);
 
   state.push('admonition_close', 'div', -1);
+  for (let i = 0; i < oldTShift.length; i++) {
+    state.bMarks[bodyStart + i] = oldBMarks[i] ?? 0;
+    state.sCount[bodyStart + i] = oldSCount[i] ?? 0;
+    state.tShift[bodyStart + i] = oldTShift[i] ?? 0;
+  }
+  state.parentType = oldParentType;
+  state.lineMax = oldLineMax;
+  state.blkIndent = oldBlkIndent;
+  state.line = nextLine;
   return true;
 }
 
@@ -157,14 +237,15 @@ function createConverter(): MarkdownItType {
   });
   md.core.ruler.after('inline', 'strikethrough_del', useDelForStrikethrough);
 
-  // Port of upstream's `_verbatim_formatter`, which `pymdownx.superfences` calls for a
-  // custom fence: the body of a `csf` fence is Confluence Storage Format the user wrote,
-  // so it goes into the element verbatim and has to be well-formed XHTML on its own.
   const renderFence = md.renderer.rules.fence;
   if (renderFence === undefined) {
     throw new Error('markdown-it has no renderer rule for fenced code blocks');
   }
-  md.renderer.rules.fence = (tokens, idx, options, env, renderer) => {
+
+  // Port of upstream's `_verbatim_formatter`, which `pymdownx.superfences` calls for a
+  // custom fence: the body of a `csf` fence is Confluence Storage Format the user wrote,
+  // so it goes into the element verbatim and has to be well-formed XHTML on its own.
+  const verbatimFormatter: RendererRule = (tokens, idx, options, env, renderer) => {
     const token = tokens[idx];
     const info = token?.info.trim().split(/\s+/u)[0] ?? '';
     if (token === undefined || info !== CSF_LANGUAGE) {
@@ -172,6 +253,8 @@ function createConverter(): MarkdownItType {
     }
     return `<div class="${CSF_LANGUAGE}">${token.content.replace(/\n$/u, '')}</div>\n`;
   };
+
+  md.renderer.rules.fence = verbatimFormatter;
 
   return md;
 }

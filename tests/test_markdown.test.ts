@@ -220,7 +220,7 @@ describe('markdownToHtml', () => {
   });
 
   it('numbers task lists and footnotes from scratch on every call', () => {
-    const source = '- [x] done\n- [ ] todo\n';
+    const source = '- [x] done\n- [ ] todo\n\nText[^1]\n\n[^1]: The note.\n';
 
     expect(markdownToHtml(source)).toBe(markdownToHtml(source));
   });
@@ -290,9 +290,41 @@ describe('admonitions', () => {
     );
   });
 
-  it('leaves an indented marker as a paragraph, as upstream does', () => {
+  it('leaves a marker that runs into an indented paragraph line as text, as upstream does', () => {
     expect(markdownToHtml('- list item\n    !!! note\n        body\n')).toBe(
       '<ul>\n<li>list item\n!!! note\nbody</li>\n</ul>\n',
+    );
+  });
+
+  it('takes a body indented with a tab', () => {
+    expect(markdownToHtml('!!! note\n\tbody\n')).toBe(
+      '<div class="admonition note">\n<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n',
+    );
+  });
+
+  it('takes a body indented with spaces and a tab', () => {
+    expect(markdownToHtml('!!! note\n  \tbody more\n')).toBe(
+      '<div class="admonition note">\n<p class="admonition-title">Note</p>\n<p>body more</p>\n</div>\n',
+    );
+  });
+
+  it('holds an admonition inside an unordered list item, as upstream does', () => {
+    expect(markdownToHtml('- item\n\n    !!! note\n        body\n\n    after\n')).toBe(
+      '<ul>\n<li>\n<p>item</p>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n<p>after</p>\n</li>\n</ul>\n',
+    );
+  });
+
+  it('holds an admonition inside an ordered list item, as upstream does', () => {
+    expect(markdownToHtml('1. item\n\n    !!! note\n        body\n\n    after\n')).toBe(
+      '<ol>\n<li>\n<p>item</p>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n<p>after</p>\n</li>\n</ol>\n',
+    );
+  });
+
+  it('takes a type outside ASCII', () => {
+    expect(markdownToHtml('!!! nötig\n    body\n')).toBe(
+      '<div class="admonition nötig">\n<p class="admonition-title">Nötig</p>\n<p>body</p>\n</div>\n',
     );
   });
 
@@ -326,6 +358,13 @@ describe('admonitions', () => {
     expect(markdownToHtml('!!! note\n    body\nNot indented.\n')).toBe(
       '<div class="admonition note">\n<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n' +
         '<p>Not indented.</p>\n',
+    );
+  });
+
+  it('holds an admonition inside a block quote, as upstream does', () => {
+    expect(markdownToHtml('> !!! note\n>     body\n')).toBe(
+      '<blockquote>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<p>body</p>\n</div>\n</blockquote>\n',
     );
   });
 
