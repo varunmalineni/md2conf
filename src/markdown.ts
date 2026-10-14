@@ -117,12 +117,41 @@ function capitalize(word: string): string {
 }
 
 /**
+ * True if the line may open a block whose first line is an admonition marker.
+ *
+ * Python-Markdown matches `!!!` at the start of a block, and its list items decide what a
+ * block is differently from markdown-it:
+ *
+ * - a marker at column 0 ends the list or quote around it and opens a block of its own;
+ * - a list item opens a nested block only after a blank line, and only for an indent of
+ *   whole tab stops, which Python-Markdown then strips one tab stop at a time — a marker
+ *   anywhere else in the item, at its margin included, is part of the item's text;
+ * - everywhere else the marker has to sit at the margin of the block it opens.
+ */
+function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
+  const columns = state.sCount[line] ?? 0;
+  const relative = columns - state.blkIndent;
+  if (columns === 0) {
+    return true;
+  }
+  if (state.listIndent >= 0) {
+    return (
+      state.parentType === 'list' &&
+      relative > 0 &&
+      relative < ADMONITION_INDENT &&
+      columns % ADMONITION_INDENT === 0
+    );
+  }
+  return relative === 0;
+}
+
+/**
  * Block rule for Python-Markdown's `!!!` admonition syntax.
  *
  * The body is the indented block that follows the marker, dedented by one tab stop and
  * tokenized in place, so an admonition nests, holds any block content, and keeps the
  * source line numbers of the document it came from. As upstream, the rule also ends a
- * paragraph that runs into a marker at the same margin.
+ * paragraph that runs into a marker that opens a block.
  */
 function admonition(
   state: StateBlock,
@@ -130,13 +159,7 @@ function admonition(
   endLine: number,
   silent: boolean,
 ): boolean {
-  // Python-Markdown looks for `!!!` at the start of a block, so a marker indented into a
-  // block belongs to that block's text. It accepts a marker to the left of the margin,
-  // which is a lazy line, and inside a list item a marker up to one tab stop in, because
-  // Python-Markdown dedents a nested block by a whole tab stop while markdown-it's margin
-  // for a list item is the width of the list marker.
-  const indent = (state.sCount[startLine] ?? 0) - state.blkIndent;
-  if (indent > 0 && !(state.parentType === 'list' && indent < ADMONITION_INDENT)) {
+  if (!startsAdmonitionBlock(state, startLine)) {
     return false;
   }
   const match = ADMONITION_REGEXP.exec(lineContent(state, startLine));

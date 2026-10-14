@@ -368,6 +368,33 @@ describe('admonitions', () => {
     );
   });
 
+  it('leaves a marker indented inside a list item as the item’s text, as upstream does', () => {
+    // A marker left of a list item's margin, and one at that margin, stay the item's text;
+    // only column 0 ends the list. CommonMark strips the continuation lines' indentation,
+    // so these differ from Python-Markdown in whitespace only.
+    expect(markdownToHtml('- a\n !!! note\n     body\n')).toBe(
+      '<ul>\n<li>a\n!!! note\nbody</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('1. a\n  !!! note\n      body\n')).toBe(
+      '<ol>\n<li>a\n!!! note\nbody</li>\n</ol>\n',
+    );
+    expect(markdownToHtml('- a\n  !!! note\n      body\n')).toBe(
+      '<ul>\n<li>a\n!!! note\nbody</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- a\n  - b\n    !!! note\n        body\n')).toBe(
+      '<ul>\n<li>a\n<ul>\n<li>b\n!!! note\nbody</li>\n</ul>\n</li>\n</ul>\n',
+    );
+  });
+
+  it('leaves a marker that is not a whole number of tab stops into a list item as text', () => {
+    expect(markdownToHtml('- a\n\n  !!! note\n      body\n')).not.toContain('admonition');
+    expect(markdownToHtml('- a\n\n   !!! note\n       body\n')).not.toContain('admonition');
+  });
+
+  it('leaves a marker in a block quote inside a list item as the quote’s text', () => {
+    expect(markdownToHtml('- a\n  > q\n  !!! note\n      body\n')).not.toContain('admonition');
+  });
+
   it('leaves a marker indented into the block as a paragraph, as upstream does', () => {
     // Python-Markdown keeps the indentation of the continuation line and CommonMark
     // strips it. Upstream renders no admonition for either input, and neither do we.
