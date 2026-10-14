@@ -8,6 +8,12 @@ carried over from it.
 This repository is distributed under the MIT Licence; see [LICENSE](LICENSE) for our own
 notice (© 2026 Varun Malineni).
 
+## Third-party notices
+
+Runtime dependencies carry their own licence notices, which npm installs next to the
+package. As of ZER-30 these are [`commander`](https://github.com/tj/commander) (MIT) and
+[`@xmldom/xmldom`](https://github.com/xmldom/xmldom) (MIT).
+
 ## Upstream notice
 
 MIT License
