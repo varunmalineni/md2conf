@@ -44,7 +44,7 @@ than accepted and ignored.
 | `-a`, `--api-key API_KEY`                              | Confluence API key. Refer to documentation how to obtain one. (env: `CONFLUENCE_API_KEY`)                                        |
 | `-s`, `--space SPACE`                                  | Confluence space key for pages to be published. If omitted, will default to user space. (env: `CONFLUENCE_SPACE_KEY`)            |
 | `-l`, `--loglevel {debug,info,warning,error,critical}` | Use this option to set the log verbosity.                                                                                        |
-| `--root-page CONFLUENCE_PAGE_ID`                       | Confluence page to act as initial parent for creating new pages. Defaults to space home page.                                    |
+| `--root-page CONFLUENCE_PAGE_ID`                       | Confluence page to act as initial parent for creating new pages. Defaults to space home page. (env: `CONFLUENCE_PAGE_ID`)        |
 | `--keep-hierarchy`                                     | Maintain source directory structure when exporting to Confluence.                                                                |
 | `--skip-hierarchy`                                     | Flatten directories with no `index.md` or `README.md` when exporting to Confluence. (default)                                    |
 | `--title-prefix STR`                                   | String to prepend to Confluence page title for each published page.                                                              |
@@ -99,8 +99,62 @@ substituting `CLOUD_ID` with your own Cloud ID:
 export CONFLUENCE_API_URL='https://api.atlassian.com/ex/confluence/CLOUD_ID/'
 ```
 
+This release also accepts `CONFLUENCE_PAGE_ID` as the fallback for `--root-page`, which
+upstream does not read. A deployment can therefore set the parent page without editing
+every command line:
+
+```sh
+export CONFLUENCE_PAGE_ID='19840101'
+```
+
 A command-line flag wins over the environment variable it corresponds to, and the
 API key never appears in the log, not even at `--loglevel debug`.
+
+## Document properties
+
+_md2conf_ reads a page ID, a space key and a `generated-by` note from HTML comments, and the
+rest of the page settings from YAML or JSON front-matter (the front-matter itself may also be
+wrapped in an HTML comment). The comments are the same as upstream's:
+
+```markdown
+<!-- confluence-page-id: 19840101 -->
+<!-- confluence-space-key: SPACE -->
+<!-- generated-by: This page has been generated with md2conf. -->
+```
+
+The front-matter keys, with upstream's spelling:
+
+```yaml
+---
+# page title; otherwise the first top-level heading is used
+title: 'Example document'
+# Confluence page ID, also accepted as confluence_page_id; needs no quotes
+page_id: 19840101
+# Confluence space key, also accepted as confluence_space_key
+space_key: SPACE
+# page labels
+tags: ['markdown', 'md']
+# false keeps the page content in Confluence only
+synchronized: true
+# page properties to apply
+properties:
+  content-appearance-published: full-width
+# layout options for this page
+layout:
+  alignment: left
+  image:
+    alignment: left
+    max_width: 640
+  table:
+    width: 640
+    # or responsive (default)
+    display_mode: fixed
+---
+```
+
+A key the scanner does not know is ignored, and reported in the debug log. Keys that upstream
+supports but this release does not yet, such as `folder_id` for Confluence folders, are ignored
+the same way.
 
 ## Development
 

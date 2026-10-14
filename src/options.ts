@@ -39,7 +39,7 @@ export class ProcessorOptions {
     valueOption(
       'rootPage',
       { type: 'text', metavar: 'CONFLUENCE_PAGE_ID' },
-      'Confluence page to act as initial parent for creating new pages. Defaults to space home page.',
+      'Confluence page to act as initial parent for creating new pages. Defaults to space home page. (env: CONFLUENCE_PAGE_ID)',
     ),
     booleanOption(
       'keepHierarchy',

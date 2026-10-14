@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { OptionsType } from '../src/clio.js';
 import {
   ArgumentError,
   ConfluenceError,
@@ -14,6 +15,13 @@ import {
   PageError,
 } from '../src/environment.js';
 import { getHelp, logLevels, main, type CliOutput } from '../src/__main__.js';
+import { ProcessorOptions } from '../src/options.js';
+import {
+  ConverterOptions,
+  ImageLayoutOptions,
+  LayoutOptions,
+  TableLayoutOptions,
+} from '../src/options_converter.js';
 
 interface PackageManifest {
   readonly version: string;
@@ -32,6 +40,10 @@ const manifest = JSON.parse(
 const mdpath = 'sample/index.md';
 
 function runMain(...args: readonly string[]): CliRun {
+  return runArgv([mdpath, ...args]);
+}
+
+function runArgv(args: readonly string[]): CliRun {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const output: CliOutput = {
@@ -42,7 +54,7 @@ function runMain(...args: readonly string[]): CliRun {
       stderr.push(chunk);
     },
   };
-  const exitCode = main(['node', 'md2conf', mdpath, ...args], output);
+  const exitCode = main(['node', 'md2conf', ...args], output);
   return { stdout: stdout.join(''), stderr: stderr.join(''), exitCode };
 }
 
@@ -128,14 +140,34 @@ describe('md2conf --help', () => {
       '--overwrite',
       '--no-overwrite',
       '--keep-state',
+      '--skip-state',
       '--line-numbers',
+      '--no-line-numbers',
       '--global-properties',
       '--notify',
+      '--no-notify',
+      '--render-drawio',
+      '--no-render-drawio',
+      '--render-plantuml',
+      '--no-render-plantuml',
+      '--render-latex',
+      '--no-render-latex',
+      '--render-other',
+      '--no-render-other',
+      '--user-mentions',
+      '--no-user-mentions',
       '--ignore-invalid-url',
+      '-r',
     ]) {
       expect(help).not.toContain(`${flag} `);
       expect(help).not.toContain(`${flag}\n`);
     }
+  });
+
+  it('registers --version without a short option, as upstream does', () => {
+    expect(getHelp()).toContain('--version');
+    expect(getHelp()).not.toContain('-V');
+    expect(runMain('-V').exitCode).toBe(2);
   });
 });
 
@@ -305,6 +337,34 @@ describe('environment variables', () => {
     expect(properties.spaceKey).toBe('ENVS');
   });
 
+  it('supplies --root-page from CONFLUENCE_PAGE_ID, which upstream does not read', () => {
+    vi.stubEnv('CONFLUENCE_DOMAIN', 'env.atlassian.net');
+    vi.stubEnv('CONFLUENCE_API_KEY', 'env-key');
+    vi.stubEnv('CONFLUENCE_PAGE_ID', '19840101');
+
+    const run = runMain('--loglevel', 'debug');
+
+    expect(parsedOptions(run).rootPage).toBe('19840101');
+    expect(runMain('--loglevel', 'debug', '--root-page', '42').stderr).toContain('"rootPage":"42"');
+  });
+
+  it('lets --root-page win over CONFLUENCE_PAGE_ID', () => {
+    vi.stubEnv('CONFLUENCE_DOMAIN', 'env.atlassian.net');
+    vi.stubEnv('CONFLUENCE_API_KEY', 'env-key');
+    vi.stubEnv('CONFLUENCE_PAGE_ID', '19840101');
+
+    const run = runMain('--loglevel', 'debug', '--root-page', '42');
+
+    expect(parsedOptions(run).rootPage).toBe('42');
+  });
+
+  it('leaves the root page unset when neither the flag nor the variable is given', () => {
+    vi.stubEnv('CONFLUENCE_DOMAIN', 'env.atlassian.net');
+    vi.stubEnv('CONFLUENCE_API_KEY', 'env-key');
+
+    expect(parsedOptions(runMain('--loglevel', 'debug')).rootPage).toBeUndefined();
+  });
+
   it('defaults the base path to /wiki/ when only a domain is known', () => {
     vi.stubEnv('CONFLUENCE_API_KEY', 'env-key');
 
@@ -369,7 +429,7 @@ describe('log verbosity', () => {
   it('rejects a level that is not one of them', () => {
     const run = runMain('--loglevel', 'verbose', '--domain', 'd.example.com', '--api-key', 'key');
 
-    expect(run.exitCode).not.toBe(0);
+    expect(run.exitCode).toBe(2);
     expect(run.stderr).toContain('Allowed choices are debug, info, warning, error, critical');
   });
 });
@@ -416,8 +476,45 @@ describe('missing or wrong arguments', () => {
   it('reports an unsupported command-line option', () => {
     const run = runMain('--no-such-option');
 
-    expect(run.exitCode).toBe(1);
+    expect(run.exitCode).toBe(2);
     expect(run.stderr).toContain("unknown option '--no-such-option'");
+  });
+
+  it.each<[string, readonly string[]]>([
+    ['a missing path', []],
+    ['an unknown option', ['--bogus']],
+    ['an unknown log level', ['-l', 'bogus']],
+    ['a value that is not an integer', ['--layout-image-max-width', 'abc']],
+  ])('exits with 2 and prints the usage for %s, as argparse does', (_name, args) => {
+    const run = runArgv(args);
+
+    expect(run.exitCode).toBe(2);
+    expect(run.stderr).toContain('Usage: md2conf');
+  });
+
+  it('leaves the short version option unregistered', () => {
+    const run = runMain('-V');
+
+    expect(run.exitCode).toBe(2);
+    expect(run.stderr).toContain("unknown option '-V'");
+  });
+});
+
+describe('the command-line fields the options classes declare', () => {
+  const optionsClasses: readonly (readonly [string, OptionsType<unknown>])[] = [
+    ['ProcessorOptions', ProcessorOptions],
+    ['ConverterOptions', ConverterOptions],
+    ['LayoutOptions', LayoutOptions],
+    ['ImageLayoutOptions', ImageLayoutOptions],
+    ['TableLayoutOptions', TableLayoutOptions],
+  ];
+
+  it.each(optionsClasses)('names only fields that %s has', (_name, optionsType) => {
+    const defaults = Object.assign({}, new optionsType()) as Record<string, unknown>;
+
+    for (const field of optionsType.fields) {
+      expect(Object.hasOwn(defaults, field.name)).toBe(true);
+    }
   });
 });
 

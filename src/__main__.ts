@@ -1,14 +1,21 @@
 // Port of md2conf/__main__.py from hunyadi/md2conf (MIT; see NOTICE.md).
 //
 // Argument parsing and logging setup only: the `--local` converter arrives with
-// C16 and publishing with C18. Upstream's deprecated `-r` and
-// `--ignore-invalid-url` flags are left out with the rest of the post-MVP
-// surface (ADR 0007); plan §3 keeps flags we do not implement out of `--help`.
+// C16 and publishing with C18. ADR 0008 records what this port leaves out and
+// why, which includes upstream's deprecated `-r` and `--ignore-invalid-url`,
+// the `_exception_hook` that prints a cause chain (its first caller is the
+// publisher) and `ConfluenceAPIVersionMismatch` (REST v1 is post-MVP). Plan §3
+// keeps the flags we do not implement out of `--help`.
 
 import { CommanderError, Command, Option } from 'commander';
 
 import { addArguments, getOptions } from './clio.js';
-import { ArgumentError, ConfluenceSiteProperties, ConnectionProperties } from './environment.js';
+import {
+  ArgumentError,
+  confluencePageId,
+  ConfluenceSiteProperties,
+  ConnectionProperties,
+} from './environment.js';
 import { version } from './index.js';
 import { ProcessorOptions } from './options.js';
 
@@ -55,6 +62,7 @@ export interface CliArguments {
   readonly space?: string;
   readonly loglevel?: string;
   readonly local?: boolean;
+  readonly rootPage?: string;
   /** One entry per command-line option declared by an options class. */
   readonly [option: string]: unknown;
 }
@@ -84,8 +92,12 @@ export function getParser(output: CliOutput = processOutput): Command {
   const command = new Command()
     .name('md2conf')
     .description('Publish Markdown files to a Confluence wiki')
-    .version(version)
+    // Upstream registers `--version` alone; commander's `-V, --version` would add
+    // a short option the board's rule does not allow.
+    .version(version, '--version')
     .configureOutput({ writeOut: output.writeOut, writeErr: output.writeErr });
+  // `parser.error()` prints the usage after a wrong argument, and so does this.
+  command.showHelpAfterError();
 
   command.argument('<mdpath...>', 'Path to Markdown file or directory to convert and publish.');
   command.option(
@@ -145,7 +157,10 @@ export function main(argv: readonly string[], output: CliOutput = processOutput)
 
     configureLogging((args.loglevel as LogLevel | undefined) ?? defaultLogLevel, output);
 
-    const publisherOptions = getOptions(args, ProcessorOptions);
+    const publisherOptions = getOptions(
+      { ...args, rootPage: confluencePageId(args.rootPage) },
+      ProcessorOptions,
+    );
     log('debug', `Parsed options: ${JSON.stringify(publisherOptions)}`);
 
     const properties = args.local
@@ -158,13 +173,17 @@ export function main(argv: readonly string[], output: CliOutput = processOutput)
           apiKey: args.apiKey,
           spaceKey: args.space,
         });
+    // Not upstream's record. Until the `--local` converter (C16) and the
+    // publisher (C18) use the properties, this is the only place they are read,
+    // and it tells the user which site the run resolved.
     log(
       'debug',
       `Confluence site: ${properties.domain ?? ''}${properties.basePath ?? ''} (space: ${properties.spaceKey ?? 'user space'})`,
     );
   } catch (error) {
     if (error instanceof CommanderError) {
-      return error.exitCode;
+      // argparse fails with 2 for a wrong argument; commander uses 1.
+      return error.exitCode === 0 ? 0 : 2;
     }
     if (error instanceof ArgumentError) {
       // Upstream calls `parser.error()`, which prints the usage and fails.

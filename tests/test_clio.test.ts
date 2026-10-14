@@ -93,9 +93,11 @@ class NullableOptions {
 class SkipOptions {
   static readonly fields: readonly ArgumentOption[] = [
     booleanOption('skipUpdate', 'Skip the update.', 'Do not skip the update.'),
+    booleanOption('enabled', 'Turn the option on.', 'Turn the option off.'),
   ];
 
   skipUpdate = false;
+  enabled = true;
 }
 
 interface CliRun<T> {
@@ -248,6 +250,21 @@ describe('boolean command-line options', () => {
 
     expect(help).toContain('--skip-update');
     expect(help).toContain('--keep-update');
+  });
+
+  it('maps a skip- field onto the field, whichever flag is given', () => {
+    expect(runCli(SkipOptions, ['--skip-update']).options.skipUpdate).toBe(true);
+    expect(runCli(SkipOptions, ['--keep-update']).options.skipUpdate).toBe(false);
+  });
+
+  it('lets the last flag of a skip-/keep- pair win, as the shared argparse dest does', () => {
+    expect(runCli(SkipOptions, ['--skip-update', '--keep-update']).options.skipUpdate).toBe(false);
+    expect(runCli(SkipOptions, ['--keep-update', '--skip-update']).options.skipUpdate).toBe(true);
+  });
+
+  it('lets the last flag of a no- pair win too', () => {
+    expect(runCli(SkipOptions, ['--enabled', '--no-enabled']).options.enabled).toBe(false);
+    expect(runCli(SkipOptions, ['--no-enabled', '--enabled']).options.enabled).toBe(true);
   });
 });
 

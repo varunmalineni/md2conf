@@ -87,6 +87,18 @@ export class ConfluenceSiteProperties {
   }
 }
 
+/**
+ * Confluence page to assume root page role for publishing a directory of Markdown files.
+ *
+ * Upstream has no environment variable here: `__main__.py` uses the name only as
+ * the argparse metavar of `--root-page`. The board asked for it as a fallback on
+ * ZER-35 (ADR 0008), so it is read here with the same precedence as every other
+ * property: the command-line flag wins.
+ */
+export function confluencePageId(rootPage?: string): string | undefined {
+  return rootPage || process.env.CONFLUENCE_PAGE_ID;
+}
+
 /** Properties related to connecting to Confluence. */
 export interface ConnectionPropertiesOptions {
   /** Confluence API URL. Required for scoped tokens. */

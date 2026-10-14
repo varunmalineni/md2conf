@@ -113,11 +113,20 @@ function attributeNameOf(flag: string): string {
   return new Option(flag).attributeName();
 }
 
-/** Upstream renders a default with `str()`; every default that reaches the help text is a scalar. */
-function formatDefault(value: unknown): string {
-  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-    ? String(value)
-    : JSON.stringify(value);
+/**
+ * The value a command-line option carries, narrowed to what a help text can
+ * render. Every default that reaches the help text is a scalar, upstream's
+ * `str()` included.
+ */
+function scalarDefault(value: unknown): string | number | boolean | undefined {
+  switch (typeof value) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+      return value;
+    default:
+      return undefined;
+  }
 }
 
 function metavarOf(valueType: OptionValueType, argName: string): string {
@@ -133,6 +142,23 @@ function metavarOf(valueType: OptionValueType, argName: string): string {
   }
 }
 
+/**
+ * Both flags of a boolean pair fill the same key, which is what upstream's shared
+ * argparse `dest` does: the flag that comes last on the command line wins.
+ */
+class BooleanFlag extends Option {
+  constructor(flags: string, description: string, dest: string) {
+    super(flags, description);
+    this.dest = dest;
+  }
+
+  private readonly dest: string;
+
+  override attributeName(): string {
+    return this.dest;
+  }
+}
+
 /** Adds arguments to a command-line argument parser by recursively visiting fields of a composite type. */
 class OptionTreeVisitor {
   private readonly prefixes: string[] = [];
@@ -145,13 +171,18 @@ class OptionTreeVisitor {
 
   private addBooleanField(field: BooleanOption, defaults: Record<string, unknown>): void {
     const argName = toArgName(field.name);
+    const flag = this.getArgName(argName);
     const trueText = defaults[field.name] === true ? `${field.trueText} (default)` : field.trueText;
-    this.command.addOption(new Option(this.getArgName(argName), trueText));
+    this.command.addOption(new BooleanFlag(flag, trueText, attributeNameOf(flag)));
 
-    const inverseArgName = toInverseArgName(argName);
+    const inverseFlag = this.getArgName(toInverseArgName(argName));
     const falseText =
       defaults[field.name] === false ? `${field.falseText} (default)` : field.falseText;
-    this.command.addOption(new Option(this.getArgName(inverseArgName), falseText));
+    // commander writes `false` for a `--no-` flag on its own; `preset` gives the
+    // `--keep-`/`--skip-` pair the same value.
+    this.command.addOption(
+      new BooleanFlag(inverseFlag, falseText, attributeNameOf(flag)).preset(false),
+    );
   }
 
   private addValueField(field: ValueOption | NullableOption, helpText: string): void {
@@ -173,18 +204,16 @@ class OptionTreeVisitor {
   }
 
   private addNullableField(field: NullableOption, defaults: Record<string, unknown>): void {
-    const valueDefault = defaults[field.name];
+    const valueDefault = scalarDefault(defaults[field.name]);
     const valueHelpText =
-      valueDefault === undefined || valueDefault === null
+      valueDefault === undefined
         ? field.valueText
-        : `${field.valueText} (default: ${formatDefault(valueDefault)})`;
+        : `${field.valueText} (default: ${String(valueDefault)})`;
     this.addValueField(field, valueHelpText);
 
     const argName = toArgName(field.name);
     const omitHelpText =
-      valueDefault === undefined || valueDefault === null
-        ? `${field.omitText} (default)`
-        : field.omitText;
+      valueDefault === undefined ? `${field.omitText} (default)` : field.omitText;
     this.command.addOption(new Option(this.getArgName(`no-${argName}`), omitHelpText));
   }
 
@@ -207,11 +236,11 @@ class OptionTreeVisitor {
           this.addBooleanField(field, defaults);
           break;
         case 'value': {
-          const valueDefault = defaults[field.name];
+          const valueDefault = scalarDefault(defaults[field.name]);
           const helpText =
-            valueDefault === undefined || valueDefault === null
+            valueDefault === undefined
               ? field.text
-              : `${field.text} (default: ${formatDefault(valueDefault)})`;
+              : `${field.text} (default: ${String(valueDefault)})`;
           this.addValueField(field, helpText);
           break;
         }
@@ -247,15 +276,8 @@ function getParameters(
     const flag = `--${[...prefixes, argName].join('-')}`;
     switch (field.kind) {
       case 'boolean': {
-        const positive = attributeNameOf(flag);
-        // A `skip-`/`keep-` pair lands in two commander keys; a `no-` flag flips
-        // the field's own key, which is why the second key is only read when it
-        // is a different one.
-        const negativeAttribute = attributeNameOf(
-          `--${[...prefixes, toInverseArgName(argName)].join('-')}`,
-        );
-        const negative = negativeAttribute === positive ? undefined : values[negativeAttribute];
-        const value = booleanValue(values[positive], negative);
+        // Both flags of the pair fill this one key, so the last one wins.
+        const value = values[attributeNameOf(flag)];
         if (value !== undefined) {
           params[field.name] = value;
         }
@@ -296,16 +318,6 @@ function buildOptions<T>(
 ): T {
   const params = getParameters(values, optionsType, prefixes);
   return Object.assign(new optionsType() as object, params) as T;
-}
-
-function booleanValue(positive: unknown, negative: unknown): boolean | undefined {
-  if (positive === true || negative === false) {
-    return true;
-  }
-  if (positive === false || negative === true) {
-    return false;
-  }
-  return undefined;
 }
 
 /**
