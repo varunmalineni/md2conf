@@ -1,6 +1,6 @@
 # ADR 0004: Mermaid rendering through the `mmdc` subprocess
 
-- Status: Proposed (pending board acceptance of the ZER-28 plan)
+- Status: Accepted (board accepted the ZER-28 plan, 2026-10-14); amended by ADR 0006
 - Context issues: ZER-27 §3.4.1, ZER-28
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR 0003: Markdown dialect and how differences from upstream are recorded
 
-- Status: Proposed (pending board acceptance of the ZER-28 plan)
+- Status: Accepted (board accepted the ZER-28 plan, 2026-10-14)
 - Context issues: ZER-27 §3.4.3, ZER-28
 
 ## Context
