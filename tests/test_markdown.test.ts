@@ -423,6 +423,7 @@ describe('admonitions', () => {
     // these three shapes follow from that, not from the marker rule. Each is recorded here
     // so it is visible rather than implicit; they belong in ADR 0003.
     //
+    // The rows for these three live in ZER-62, which asks for docs/dialect.md.
     // `- a` + a two-space paragraph ends the list upstream, which then makes the marker an
     // indented code block; we keep the paragraph in the item and open a block.
     expect(markdownToHtml('- a\n\n  para\n\n    !!! note\n        body\n')).toContain(
@@ -442,7 +443,8 @@ describe('admonitions', () => {
   it('leaves a marker on the first line of a list item as the item’s text', () => {
     // Upstream opens a block here, because the marker is the first thing in the item;
     // markdown-it hands the item's first line to the paragraph rule before any block rule
-    // sees it, so the marker stays text. Recorded here so it is visible, not implicit.
+    // sees it, so the marker stays text. Recorded here so it is visible, not implicit;
+    // the row for it is asked for in ZER-62.
     expect(markdownToHtml('- !!! note\n    body\n')).toBe('<ul>\n<li>!!! note\nbody</li>\n</ul>\n');
   });
 
