@@ -8,8 +8,8 @@
  *
  * Alerts and task lists need no plugin: markdown-it without one already produces the
  * block quotes and list items upstream's converter reads (ADR 0007). Footnotes are parsed
- * by `@mdit/plugin-footnote`, but their render rules are replaced here so the anchors are
- * the ones upstream publishes.
+ * by `@mdit/plugin-footnote`, but their numbering, list and render rules are ours, so the
+ * anchors and the footnote list are the ones upstream publishes.
  *
  * @see https://github.com/hunyadi/md2conf
  * @see docs/adr/0002-markdown-parser-and-conversion-pipeline.md
@@ -347,6 +347,137 @@ function renderFootnoteOpen(tokens: Token[], idx: number): string {
   return `<li id="fn:${escapeAttribute(label)}">\n`;
 }
 
+/** One footnote definition, as the plugin's block rule leaves it on the token stream. */
+interface FootnoteDefinition {
+  readonly label: string;
+  readonly tokens: Token[];
+}
+
+/**
+ * Takes the definitions off the token stream and returns them in document order.
+ *
+ * The plugin's block rule wraps the body of every definition in a
+ * `footnote_reference_open` … `footnote_reference_close` group, which its `footnoteTail` core
+ * rule moves to the end of the document. A definition nothing references is on the stream as
+ * well; the plugin drops it because it numbers from `env.footnotes.list`, which the inline
+ * rule fills in on first reference.
+ */
+function takeFootnoteDefinitions(state: StateCore): FootnoteDefinition[] {
+  const definitions: FootnoteDefinition[] = [];
+  let body: Token[] | undefined;
+  let label = '';
+
+  state.tokens = state.tokens.filter((token) => {
+    if (token.type === 'footnote_reference_open') {
+      label = (token as FootNoteToken).meta.label;
+      body = [];
+      return false;
+    }
+    if (token.type === 'footnote_reference_close') {
+      definitions.push({ label, tokens: body ?? [] });
+      body = undefined;
+      return false;
+    }
+    const insideDefinition = body !== undefined;
+    body?.push(token);
+    return !insideDefinition;
+  });
+
+  return definitions;
+}
+
+/** The number a label has in the definition order, which every reference has by construction. */
+function footnoteNumber(numbers: ReadonlyMap<string, number>, label: string): number {
+  const number = numbers.get(label);
+  if (number === undefined) {
+    throw new Error(`footnote ${label} is referenced without a definition`);
+  }
+  return number;
+}
+
+/**
+ * Numbers the references of one run of block tokens and counts them per label.
+ *
+ * A definition can be referenced from another definition's body, so the definitions'
+ * tokens are walked as well as the document's; a back-reference is emitted per count, and
+ * an unreferenced definition still needs the one back-reference upstream gives it.
+ */
+function numberFootnoteReferences(
+  tokens: Token[],
+  numbers: ReadonlyMap<string, number>,
+  counts: Map<string, number>,
+): void {
+  for (const token of tokens) {
+    if (token.type !== 'inline') {
+      continue;
+    }
+    for (const child of token.children ?? []) {
+      if (child.type !== 'footnote_ref') {
+        continue;
+      }
+      const reference = child as FootNoteToken;
+      const { label } = reference.meta;
+      reference.meta = { ...reference.meta, id: footnoteNumber(numbers, label) };
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+  }
+}
+
+/**
+ * Builds the footnote list at the end of the document, replacing the plugin's `footnoteTail`
+ * (ADR 0007 §6).
+ *
+ * Upstream numbers footnotes and lists them in the order their definitions appear, and keeps
+ * a definition nothing references. The plugin makes both choices from `env.footnotes.list`,
+ * which the inline rule fills in on first reference, so it numbers by first reference and
+ * drops an unreferenced definition. Both choices are made here instead: the definitions give
+ * the order and the labels, and the references only give the numbers on the anchors and how
+ * many back-references a definition gets.
+ */
+function footnoteTail(state: StateCore): void {
+  const definitions = takeFootnoteDefinitions(state);
+
+  if (definitions.length === 0) {
+    return;
+  }
+
+  const numbers = new Map(definitions.map(({ label }, index) => [label, index]));
+  const counts = new Map<string, number>();
+
+  numberFootnoteReferences(state.tokens, numbers, counts);
+  for (const definition of definitions) {
+    numberFootnoteReferences(definition.tokens, numbers, counts);
+  }
+
+  state.tokens.push(new state.Token('footnote_block_open', '', 1));
+
+  for (const [id, definition] of definitions.entries()) {
+    const tokens = [...definition.tokens];
+    // Upstream ends a definition with its back-references inside the last paragraph, so a
+    // paragraph that closes the definition waits for them.
+    const paragraphClose = tokens.at(-1)?.type === 'paragraph_close' ? tokens.pop() : undefined;
+    const references = Math.max(counts.get(definition.label) ?? 0, 1);
+
+    const footnoteOpen = new state.Token('footnote_open', '', 1);
+    footnoteOpen.meta = { id, label: definition.label };
+    state.tokens.push(footnoteOpen, ...tokens);
+
+    for (let subId = 0; subId < references; subId += 1) {
+      const footnoteAnchor = new state.Token('footnote_anchor', '', 0);
+      footnoteAnchor.meta = { id, subId, label: definition.label };
+      state.tokens.push(footnoteAnchor);
+    }
+
+    if (paragraphClose !== undefined) {
+      state.tokens.push(paragraphClose);
+    }
+
+    state.tokens.push(new state.Token('footnote_close', '', -1));
+  }
+
+  state.tokens.push(new state.Token('footnote_block_close', '', -1));
+}
+
 /**
  * Builds the converter. Exported for the tests that assert the token stream; the package
  * entry point does not re-export it.
@@ -363,6 +494,7 @@ export function createConverter(): MarkdownItType {
     alt: ['paragraph', 'reference', 'blockquote', 'list'],
   });
   md.core.ruler.after('inline', 'strikethrough_del', useDelForStrikethrough);
+  md.core.ruler.at('footnoteTail', footnoteTail);
 
   const renderFence = md.renderer.rules.fence;
   if (renderFence === undefined) {

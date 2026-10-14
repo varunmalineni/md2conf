@@ -252,20 +252,49 @@ describe('markdownToHtml', () => {
     );
   });
 
-  it('numbers footnotes in the order they are first referenced', () => {
-    // Python-Markdown numbers in the order the definitions appear (ADR 0007 §5); the
-    // plugin numbers in the order they are referenced, and drops a definition that is
-    // never referenced. Both are pinned here so the difference is visible.
+  it('numbers footnotes in the order their definitions appear', () => {
     expect(markdownToHtml('Text[^b] and [^a].\n\n[^a]: A\n[^b]: B\n')).toBe(
-      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">1</a></sup> and ' +
-        '<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">2</a></sup>.</p>\n' +
+      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">2</a></sup> and ' +
+        '<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">1</a></sup>.</p>\n' +
         '<div class="footnote">\n<hr />\n<ol>\n' +
-        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
         '<li id="fn:a">\n<p>A&#160;<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
         '</ol>\n</div>\n',
     );
+  });
+
+  it('keeps a definition nothing references, with one back-reference', () => {
     expect(markdownToHtml('Text[^used].\n\n[^u]: Never referenced.\n')).toBe(
-      '<p>Text[^used].</p>\n',
+      '<p>Text[^used].</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:u">\n<p>Never referenced.&#160;' +
+        '<a class="footnote-backref" href="#fnref:u" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
+    );
+  });
+
+  it('numbers a footnote referenced from another footnote by its definition order', () => {
+    expect(markdownToHtml('Text[^a].\n\n[^a]: A note about [^b]\n[^b]: B note\n')).toBe(
+      '<p>Text<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">1</a></sup>.</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:a">\n<p>A note about ' +
+        '<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">2</a></sup>&#160;' +
+        '<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:b">\n<p>B note&#160;' +
+        '<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
+    );
+  });
+
+  it('numbers a footnote referenced twice by its definition order', () => {
+    expect(markdownToHtml('Text[^b] and again[^b].\n\n[^a]: A\n[^b]: B\n')).toBe(
+      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">2</a></sup> and again' +
+        '<sup id="fnref2:b"><a class="footnote-ref" href="#fn:b">2</a></sup>.</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:a">\n<p>A&#160;<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a>' +
+        '<a class="footnote-backref" href="#fnref2:b" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
     );
   });
 
