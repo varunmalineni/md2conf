@@ -368,6 +368,70 @@ describe('admonitions', () => {
     );
   });
 
+  it('holds an admonition in a list item whose margin is four columns, as upstream does', () => {
+    expect(markdownToHtml('1.  a\n\n    !!! note\n        body\n')).toBe(
+      '<ol>\n<li>\n<p>a</p>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<p>body</p>\n</div>\n</li>\n</ol>\n',
+    );
+    expect(markdownToHtml('-   a\n\n    !!! note\n        body\n')).toBe(
+      '<ul>\n<li>\n<p>a</p>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<p>body</p>\n</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('10. a\n\n    !!! note\n        body\n')).toBe(
+      '<ol start="10">\n<li>\n<p>a</p>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n</li>\n</ol>\n',
+    );
+  });
+
+  it('holds an admonition that closes a nested list, as upstream does', () => {
+    expect(markdownToHtml('- a\n    - b\n    !!! note\n        body\n')).toBe(
+      '<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- a\n    - b\n        - c\n    !!! note\n        body\n')).toBe(
+      '<ul>\n<li>a\n<ul>\n<li>b\n<ul>\n<li>c</li>\n</ul>\n</li>\n</ul>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n' +
+        '</li>\n</ul>\n',
+    );
+  });
+
+  it('documents the list and quote shapes that follow markdown-it, not Python-Markdown', () => {
+    // Python-Markdown decides what continues a list item differently from CommonMark, and
+    // these three shapes follow from that, not from the marker rule. Each is recorded here
+    // so it is visible rather than implicit; they belong in ADR 0003.
+    //
+    // `- a` + a two-space paragraph ends the list upstream, which then makes the marker an
+    // indented code block; we keep the paragraph in the item and open a block.
+    expect(markdownToHtml('- a\n\n  para\n\n    !!! note\n        body\n')).toContain(
+      '<p>para</p>\n<div class="admonition note">',
+    );
+    // A three-space nested list is not nested upstream, so its marker is code.
+    expect(markdownToHtml('1. a\n   - b\n\n        !!! note\n            body\n')).toContain(
+      '<div class="admonition note">',
+    );
+    // A block quote inside a list item closes at the marker upstream; CommonMark keeps the
+    // marker inside the quote's paragraph.
+    expect(markdownToHtml('1. a\n\n    > q\n    !!! note\n      body\n')).not.toContain(
+      'admonition',
+    );
+  });
+
+  it('leaves a marker on the first line of a list item as the item’s text', () => {
+    // Upstream opens a block here, because the marker is the first thing in the item;
+    // markdown-it hands the item's first line to the paragraph rule before any block rule
+    // sees it, so the marker stays text. Recorded here so it is visible, not implicit.
+    expect(markdownToHtml('- !!! note\n    body\n')).toBe('<ul>\n<li>!!! note\nbody</li>\n</ul>\n');
+  });
+
+  it('leaves a marker deeper inside a list item as the item’s text, as upstream does', () => {
+    // Python-Markdown flattens the two-space list, so the marker sits in the item's text
+    // there too; CommonMark strips the indentation of the continuation lines.
+    expect(markdownToHtml('- a\n    - b\n        !!! note\n            body\n')).toBe(
+      '<ul>\n<li>a\n<ul>\n<li>b\n!!! note\nbody</li>\n</ul>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- a\n  - b\n    !!! note\n        body\n')).not.toContain('admonition');
+  });
+
   it('leaves a marker indented inside a list item as the item’s text, as upstream does', () => {
     // A marker left of a list item's margin, and one at that margin, stay the item's text;
     // only column 0 ends the list. CommonMark strips the continuation lines' indentation,

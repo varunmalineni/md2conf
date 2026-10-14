@@ -120,13 +120,16 @@ function capitalize(word: string): string {
  * True if the line may open a block whose first line is an admonition marker.
  *
  * Python-Markdown matches `!!!` at the start of a block, and its list items decide what a
- * block is differently from markdown-it:
+ * block is differently from markdown-it. Inside a list item it starts a nested block
+ * only for an indent of whole tab stops, which it then strips one tab stop at a time. That
+ * block starts after a blank line, or where the lists inside the item have just closed,
+ * which leaves the marker left of the item's margin.
  *
  * - a marker at column 0 ends the list or quote around it and opens a block of its own;
- * - a list item opens a nested block only after a blank line, and only for an indent of
- *   whole tab stops, which Python-Markdown then strips one tab stop at a time — a marker
- *   anywhere else in the item, at its margin included, is part of the item's text;
- * - everywhere else the marker has to sit at the margin of the block it opens.
+ * - a marker inside a list item opens a nested block when it is indented by whole tab
+ *   stops and either starts a block or falls outside the item being closed;
+ * - everywhere else the marker has to sit at the margin of the block it opens, so a
+ *   marker indented into a block, or running into one of its paragraphs, is its text.
  */
 function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
   const columns = state.sCount[line] ?? 0;
@@ -135,12 +138,10 @@ function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
     return true;
   }
   if (state.listIndent >= 0) {
-    return (
-      state.parentType === 'list' &&
-      relative > 0 &&
-      relative < ADMONITION_INDENT &&
-      columns % ADMONITION_INDENT === 0
-    );
+    if (columns < ADMONITION_INDENT || columns % ADMONITION_INDENT !== 0) {
+      return false;
+    }
+    return (state.parentType === 'list' && relative >= 0) || relative < 0;
   }
   return relative === 0;
 }
