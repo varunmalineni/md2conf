@@ -148,6 +148,44 @@ const UPSTREAM_ADMONITION_HTML = `<!-- confluence-page-id: 00000000000 -->
 </div>`;
 
 /**
+ * `tests/source/footnote.md` from hunyadi/md2conf (MIT, see NOTICE.md), copied
+ * verbatim, because the footnote render rules are ours and issue C5 compares the whole
+ * fixture tree later.
+ */
+const UPSTREAM_FOOTNOTE_SOURCE = `<!-- confluence-page-id: 00000000000 -->
+
+## Footnotes
+
+Footnote with numeric notation [^1] and string identifier [^string].
+
+Multiple references to the same footnote: first [^multi], second [^multi], third [^multi].
+
+[^1]: This is a footnote with *numeric* notation.
+[^string]: This is a footnote with a *string identifier*.
+[^multi]: **[External Link](https://example.com)**. This footnote is referenced multiple times.`;
+
+/** XHTML that upstream's `markdown_to_html` produces for that source. */
+const UPSTREAM_FOOTNOTE_HTML = `<!-- confluence-page-id: 00000000000 -->
+
+<h2>Footnotes</h2>
+<p>Footnote with numeric notation <sup id="fnref:1"><a class="footnote-ref" href="#fn:1">1</a></sup> and string identifier <sup id="fnref:string"><a class="footnote-ref" href="#fn:string">2</a></sup>.</p>
+<p>Multiple references to the same footnote: first <sup id="fnref:multi"><a class="footnote-ref" href="#fn:multi">3</a></sup>, second <sup id="fnref2:multi"><a class="footnote-ref" href="#fn:multi">3</a></sup>, third <sup id="fnref3:multi"><a class="footnote-ref" href="#fn:multi">3</a></sup>.</p>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:1">
+<p>This is a footnote with <em>numeric</em> notation.&#160;<a class="footnote-backref" href="#fnref:1" title="">&#8617;</a></p>
+</li>
+<li id="fn:string">
+<p>This is a footnote with a <em>string identifier</em>.&#160;<a class="footnote-backref" href="#fnref:string" title="">&#8617;</a></p>
+</li>
+<li id="fn:multi">
+<p><strong><a href="https://example.com">External Link</a></strong>. This footnote is referenced multiple times.&#160;<a class="footnote-backref" href="#fnref:multi" title="">&#8617;</a><a class="footnote-backref" href="#fnref2:multi" title="">&#8617;</a><a class="footnote-backref" href="#fnref3:multi" title="">&#8617;</a></p>
+</li>
+</ol>
+</div>`;
+
+/**
  * Python-Markdown separates blocks with blank lines that markdown-it does not emit, and
  * neither output ends the same way. Element structure is what this port has to match.
  */
@@ -189,38 +227,60 @@ describe('markdownToHtml', () => {
     expect(markdownToHtml('~~gone~~\n')).toBe('<p><del>gone</del></p>\n');
   });
 
-  it('renders task lists', () => {
+  it('renders a task list as the plain list item upstream reads', () => {
     expect(markdownToHtml('- [x] done\n- [ ] todo\n')).toBe(
-      '<ul class="task-list-container">\n' +
-        '<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" ' +
-        'id="task-item-0" checked="checked" disabled="disabled" />' +
-        '<label class="task-list-item-label" for="task-item-0"> done</label></li>\n' +
-        '<li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" ' +
-        'id="task-item-1" disabled="disabled" />' +
-        '<label class="task-list-item-label" for="task-item-1"> todo</label></li>\n</ul>\n',
+      '<ul>\n<li>[x] done</li>\n<li>[ ] todo</li>\n</ul>\n',
     );
   });
 
-  it('renders footnotes', () => {
-    expect(markdownToHtml('Text with a note[^1]\n\n[^1]: The note.\n')).toBe(
-      '<p>Text with a note<sup class="footnote-ref"><a href="#footnote1">[1]</a>' +
-        '<a class="footnote-anchor" id="footnote-ref1"></a></sup></p>\n' +
-        '<hr class="footnotes-sep" />\n<section class="footnotes">\n<ol class="footnotes-list">\n' +
-        '<li id="footnote1" class="footnote-item"><p>The note. ' +
-        '<a href="#footnote-ref1" class="footnote-backref">↩︎</a></p>\n</li>\n' +
-        '</ol>\n</section>\n',
+  it('renders footnotes the way upstream anchors them', () => {
+    expect(
+      markdownToHtml(
+        'Text[^1] again[^1] and[^note].\n\n[^1]: First note.\n\n[^note]: Second note.\n',
+      ),
+    ).toBe(
+      '<p>Text<sup id="fnref:1"><a class="footnote-ref" href="#fn:1">1</a></sup> again' +
+        '<sup id="fnref2:1"><a class="footnote-ref" href="#fn:1">1</a></sup> and' +
+        '<sup id="fnref:note"><a class="footnote-ref" href="#fn:note">2</a></sup>.</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:1">\n<p>First note.&#160;' +
+        '<a class="footnote-backref" href="#fnref:1" title="">&#8617;</a>' +
+        '<a class="footnote-backref" href="#fnref2:1" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:note">\n<p>Second note.&#160;' +
+        '<a class="footnote-backref" href="#fnref:note" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
     );
   });
 
-  it('renders GitHub alerts', () => {
+  it('numbers footnotes in the order they are first referenced', () => {
+    // Python-Markdown numbers in the order the definitions appear (ADR 0007 §5); the
+    // plugin numbers in the order they are referenced, and drops a definition that is
+    // never referenced. Both are pinned here so the difference is visible.
+    expect(markdownToHtml('Text[^b] and [^a].\n\n[^a]: A\n[^b]: B\n')).toBe(
+      '<p>Text<sup id="fnref:b"><a class="footnote-ref" href="#fn:b">1</a></sup> and ' +
+        '<sup id="fnref:a"><a class="footnote-ref" href="#fn:a">2</a></sup>.</p>\n' +
+        '<div class="footnote">\n<hr />\n<ol>\n' +
+        '<li id="fn:b">\n<p>B&#160;<a class="footnote-backref" href="#fnref:b" title="">&#8617;</a></p>\n</li>\n' +
+        '<li id="fn:a">\n<p>A&#160;<a class="footnote-backref" href="#fnref:a" title="">&#8617;</a></p>\n</li>\n' +
+        '</ol>\n</div>\n',
+    );
+    expect(markdownToHtml('Text[^used].\n\n[^u]: Never referenced.\n')).toBe(
+      '<p>Text[^used].</p>\n',
+    );
+  });
+
+  it('leaves an inline footnote as text, as Python-Markdown does', () => {
+    expect(markdownToHtml('An ^[inline] footnote.\n')).toBe('<p>An ^[inline] footnote.</p>\n');
+  });
+
+  it('renders a GitHub alert as the block quote upstream reads', () => {
     expect(markdownToHtml('> [!NOTE]\n> Useful information.\n')).toBe(
-      '<div class="markdown-alert markdown-alert-note">\n<p class="markdown-alert-title">NOTE</p>\n' +
-        '<p>Useful information.</p>\n</div>\n',
+      '<blockquote>\n<p>[!NOTE]\nUseful information.</p>\n</blockquote>\n',
     );
   });
 
-  it('numbers task lists and footnotes from scratch on every call', () => {
-    const source = '- [x] done\n- [ ] todo\n\nText[^1]\n\n[^1]: The note.\n';
+  it('renders the same footnote anchors on every call', () => {
+    const source = 'Text[^1]\n\n[^1]: The note.\n';
 
     expect(markdownToHtml(source)).toBe(markdownToHtml(source));
   });
@@ -449,6 +509,14 @@ describe("upstream's admonition document", () => {
   it('renders the same element structure as Python-Markdown does', () => {
     expect(withoutBlankLines(markdownToHtml(UPSTREAM_ADMONITION_SOURCE))).toBe(
       withoutBlankLines(UPSTREAM_ADMONITION_HTML),
+    );
+  });
+});
+
+describe("upstream's footnote document", () => {
+  it('renders the same anchors and elements as Python-Markdown does', () => {
+    expect(withoutBlankLines(markdownToHtml(UPSTREAM_FOOTNOTE_SOURCE))).toBe(
+      withoutBlankLines(UPSTREAM_FOOTNOTE_HTML),
     );
   });
 });

@@ -6,21 +6,26 @@
  * element and class vocabulary, so the converter in `src/converter.ts` can follow
  * `converter.py` closely.
  *
+ * Alerts and task lists need no plugin: markdown-it without one already produces the
+ * block quotes and list items upstream's converter reads (ADR 0007). Footnotes are parsed
+ * by `@mdit/plugin-footnote`, but their render rules are replaced here so the anchors are
+ * the ones upstream publishes.
+ *
  * @see https://github.com/hunyadi/md2conf
  * @see docs/adr/0002-markdown-parser-and-conversion-pipeline.md
+ * @see docs/adr/0007-markdown-plugins-follow-upstream-vocabulary.md
  *
  * `markdown_with_line_numbers` (`--line-numbers`) and emoji rendering are post-MVP and
  * are not ported yet; the ZER-28 plan lists both as non-goals.
  */
 
-import { alert } from '@mdit/plugin-alert';
-import { footnote } from '@mdit/plugin-footnote';
-import { tasklist } from '@mdit/plugin-tasklist';
+import { footnote, type FootNoteToken } from '@mdit/plugin-footnote';
 import MarkdownIt, {
   type MarkdownIt as MarkdownItType,
   type RendererRule,
   type StateBlock,
   type StateCore,
+  type Token,
 } from 'markdown-it';
 
 /**
@@ -223,14 +228,62 @@ function useDelForStrikethrough(state: StateCore): void {
   }
 }
 
+/** Escapes a value for an XHTML attribute, as Python-Markdown's serializer does. */
+function escapeAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+/**
+ * Names an anchor of a footnote the way upstream does, from the label the author wrote:
+ * `fnref:label` for the first reference, `fnref2:label` and so on after it.
+ */
+function footnoteRefId(label: string, subId: number): string {
+  return `fnref${subId === 0 ? '' : String(subId + 1)}:${escapeAttribute(label)}`;
+}
+
+/**
+ * Footnote rendering keyed by the label the author wrote.
+ *
+ * `@mdit/plugin-footnote` parses footnotes, but its own HTML names anchors
+ * `footnote1`, which would rename every anchor upstream publishes in a page. These
+ * render rules emit the HTML Python-Markdown's `footnotes` extension produces with
+ * `BACKLINK_TITLE: ""`, so `converter.ts` can follow `converter.py`.
+ */
+function renderFootnoteRef(tokens: Token[], idx: number): string {
+  const { id, subId, label } = (tokens[idx] as FootNoteToken).meta;
+  return (
+    `<sup id="${footnoteRefId(label, subId)}">` +
+    `<a class="footnote-ref" href="#fn:${escapeAttribute(label)}">${String(id + 1)}</a></sup>`
+  );
+}
+
+function renderFootnoteAnchor(tokens: Token[], idx: number): string {
+  const { subId, label } = (tokens[idx] as FootNoteToken).meta;
+  // Upstream separates the footnote text from its first back-reference with a
+  // non-breaking space, and gives further back-references none.
+  const separator = subId === 0 ? '&#160;' : '';
+  return (
+    `${separator}<a class="footnote-backref" href="#${footnoteRefId(label, subId)}" ` +
+    `title="">&#8617;</a>`
+  );
+}
+
+function renderFootnoteOpen(tokens: Token[], idx: number): string {
+  const { label } = (tokens[idx] as FootNoteToken).meta;
+  return `<li id="fn:${escapeAttribute(label)}">\n`;
+}
+
 function createConverter(): MarkdownItType {
   // The default preset (unlike `commonmark`) brings the tables and strikethrough rules
   // upstream enables, `html` keeps inline HTML, `xhtmlOut` closes void elements, and
   // `linkify` matches upstream's `pymdownx.magiclink` autolinks.
-  const md = new MarkdownIt({ html: true, xhtmlOut: true, linkify: true })
-    .use(alert)
-    .use(tasklist)
-    .use(footnote);
+  const md = new MarkdownIt({ html: true, xhtmlOut: true, linkify: true }).use(footnote);
+  // Python-Markdown has no inline footnote syntax, so `^[…]` stays literal text.
+  md.inline.ruler.disable('footnoteInline');
 
   md.block.ruler.before('fence', 'admonition', admonition, {
     alt: ['paragraph', 'reference', 'blockquote', 'list'],
@@ -255,6 +308,13 @@ function createConverter(): MarkdownItType {
   };
 
   md.renderer.rules.fence = verbatimFormatter;
+
+  md.renderer.rules.footnote_ref = renderFootnoteRef;
+  md.renderer.rules.footnote_anchor = renderFootnoteAnchor;
+  md.renderer.rules.footnote_open = renderFootnoteOpen;
+  md.renderer.rules.footnote_close = () => '</li>\n';
+  md.renderer.rules.footnote_block_open = () => '<div class="footnote">\n<hr />\n<ol>\n';
+  md.renderer.rules.footnote_block_close = () => '</ol>\n</div>\n';
 
   return md;
 }
