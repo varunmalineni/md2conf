@@ -1,0 +1,59 @@
+<!-- confluence-page-id: 00000000000 -->
+
+## Admonitions
+
+!!! info
+    This is an information panel.
+
+!!! info "Optional explicit title"
+    This is an information panel with an explicit title.
+
+    This is the second paragraph with a [link](https://example.com/).
+
+!!! tip "Tip of the day"
+    This is a structured macro panel showing a tip.
+
+!!! note "A note"
+    This is a structured macro panel showing a note.
+
+!!! warning "A warning message"
+    This is a structured macro panel showing a warning.
+
+!!! abstract
+    This is an admonition type used in Material for MkDocs.
+
+!!! attention
+    This is a structured macro panel defined in rST syntax.
+
+!!! bug
+    This is an admonition type used in Material for MkDocs.
+
+!!! caution
+    This is a structured macro panel defined in rST syntax.
+
+!!! danger
+    This is a structured macro panel defined in rST syntax.
+
+!!! error
+    This is a structured macro panel defined in rST syntax.
+
+!!! example
+    This is an admonition type used in Material for MkDocs.
+
+!!! failure
+    This is an admonition type used in Material for MkDocs.
+
+!!! hint
+    This is a structured macro panel defined in rST syntax.
+
+!!! important
+    This is a structured macro panel defined in rST syntax.
+
+!!! question
+    This is an admonition type used in Material for MkDocs.
+
+!!! quote
+    This is an admonition type used in Material for MkDocs.
+
+!!! success
+    This is an admonition type used in Material for MkDocs.

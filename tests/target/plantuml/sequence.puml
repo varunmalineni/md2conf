@@ -1,0 +1,13 @@
+@startuml
+actor User
+participant "Web App" as Web
+participant "API Server" as API
+database "Database" as DB
+
+User -> Web: Login request
+Web -> API: Authenticate(username, password)
+API -> DB: Query user
+DB --> API: User data
+API --> Web: Auth token
+Web --> User: Login successful
+@enduml

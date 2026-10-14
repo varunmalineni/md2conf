@@ -1,0 +1,141 @@
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This page has been generated with a tool.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h2>Tables</h2>
+<p>Simple table</p>
+<table data-layout="default" data-table-width="640">
+  <thead>
+    <tr>
+      <th><p>Arabic</p></th>
+      <th><p>Roman</p></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><p>1</p></td>
+      <td><p>I</p></td>
+    </tr>
+    <tr>
+      <td><p>5</p></td>
+      <td><p>V</p></td>
+    </tr>
+    <tr>
+      <td><p>10</p></td>
+      <td><p>X</p></td>
+    </tr>
+    <tr>
+      <td><p>50</p></td>
+      <td><p>L</p></td>
+    </tr>
+    <tr>
+      <td><p>100</p></td>
+      <td><p>C</p></td>
+    </tr>
+    <tr>
+      <td><p>500</p></td>
+      <td><p>D</p></td>
+    </tr>
+    <tr>
+      <td><p>1000</p></td>
+      <td><p>M</p></td>
+    </tr>
+    <tr>
+      <td><p>1986</p></td>
+      <td><p>MCMLXXXVI</p></td>
+    </tr>
+  </tbody>
+</table>
+<p>Aligned cells</p>
+<table data-layout="default" data-table-width="640">
+  <thead>
+    <tr>
+      <th style="text-align: left;"><p>Left</p></th>
+      <th style="text-align: center;"><p>Center</p></th>
+      <th style="text-align: right;"><p>Right</p></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left;"><p>Bal</p></td>
+      <td style="text-align: center;"><p>Közép</p></td>
+      <td style="text-align: right;"><p>Jobb</p></td>
+    </tr>
+  </tbody>
+</table>
+<p>Multi-line cells</p>
+<table data-layout="default" data-table-width="640">
+  <thead>
+    <tr>
+      <th><p>Name</p></th>
+      <th><p>Description</p></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><p>Data</p></td>
+      <td><p>A multi-line<br/>paragraph.</p></td>
+    </tr>
+  </tbody>
+</table>
+<p>Table with no header row</p>
+<table data-layout="default" data-table-width="640">
+  <tbody>
+    <tr>
+      <td><p>Key</p></td>
+      <td><p>Value</p></td>
+    </tr>
+  </tbody>
+</table>
+<p>Table with header column</p>
+<table data-layout="default" data-table-width="640">
+  <thead>
+    <tr>
+      <th><p>Number</p></th>
+      <th><p>English</p></th>
+      <th><p>Hungarian</p></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th><p>1</p></th>
+      <td><p>one</p></td>
+      <td><p>egy</p></td>
+    </tr>
+    <tr>
+      <th><p>2</p></th>
+      <td><p>two</p></td>
+      <td><p>kettő</p></td>
+    </tr>
+    <tr>
+      <th><p>3</p></th>
+      <td><p>three</p></td>
+      <td><p>három</p></td>
+    </tr>
+  </tbody>
+</table>
+<p>Table with image-only cell</p>
+<table data-layout="default" data-table-width="640">
+  <tbody>
+    <tr>
+      <td><p>Image</p></td>
+      <td><ac:image ac:align="center" ac:layout="center" ac:original-width="24" ac:original-height="24" ac:custom-width="true" ac:width="24"><ri:url ri:value="http://confluence.atlassian.com/images/logo/confluence_48_trans.png"/></ac:image></td>
+    </tr>
+  </tbody>
+</table>
+<p>Table with image-only header cell</p>
+<table data-layout="default" data-table-width="640">
+  <thead>
+    <tr>
+      <th><ac:image ac:align="center" ac:layout="center" ac:original-width="24" ac:original-height="24" ac:custom-width="true" ac:width="24"><ri:url ri:value="http://confluence.atlassian.com/images/logo/confluence_48_trans.png"/></ac:image></th>
+      <th><p>Value</p></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><p>Icon</p></td>
+      <td><p>Example</p></td>
+    </tr>
+  </tbody>
+</table>

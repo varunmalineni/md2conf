@@ -1,0 +1,31 @@
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This page has been generated with a tool.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h2>Inside Details/Summary block</h2>
+<!-- If you add the attribute of markdown it'll be converted to html -->
+<div>
+  <summary>
+    <b>My summary</b>
+  </summary>
+  <table data-layout="default">
+    <thead>
+      <tr>
+        <th><p>Operation</p></th>
+        <th><p>Types</p></th>
+        <th><p>Subtypes</p></th>
+        <th><p>Additional info</p></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><p>Test</p></td>
+        <td><p>One</p></td>
+        <td><p>Sub-One</p></td>
+        <td><p>This is a test</p></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<!-- With no attribute it will not be converted and you'll end up with the raw markdown table --><div> ## Outside of details/summary block  | Operation  | Types | Subtypes | Additional info | |------------|-------|----------|-----------------| | Test2      | Two   | Sub-Two  | This is a test2 | </div>

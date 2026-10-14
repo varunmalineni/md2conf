@@ -1,0 +1,206 @@
+{
+  "admonition": {
+    "source": "source/admonition.md",
+    "target": "target/admonition.xml",
+    "status": "pending",
+    "reason": "C8"
+  },
+  "alert": {
+    "source": "source/alert.md",
+    "target": "target/alert.xml",
+    "status": "pending",
+    "reason": "C8"
+  },
+  "alignment": {
+    "source": "source/alignment.md",
+    "target": "target/alignment.xml",
+    "status": "pending",
+    "reason": "C13"
+  },
+  "anchors": {
+    "source": "source/anchors.md",
+    "target": "target/anchors.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "basic": {
+    "source": "source/basic.md",
+    "target": "target/basic.xml",
+    "status": "pending",
+    "reason": "C10"
+  },
+  "code": {
+    "source": "source/code.md",
+    "target": "target/code.xml",
+    "status": "pending",
+    "reason": "C15"
+  },
+  "collapsed": {
+    "source": "source/collapsed.md",
+    "target": "target/collapsed.xml",
+    "status": "pending",
+    "reason": "C8"
+  },
+  "emoji": {
+    "source": "source/emoji.md",
+    "target": "target/emoji.xml",
+    "status": "pending",
+    "reason": "post-MVP"
+  },
+  "extension": {
+    "source": "source/extension.md",
+    "target": "target/extension.xml",
+    "status": "pending",
+    "reason": "post-MVP"
+  },
+  "fenced": {
+    "source": "source/fenced.md",
+    "target": "target/fenced.xml",
+    "status": "pending",
+    "reason": "C15"
+  },
+  "footnote": {
+    "source": "source/footnote.md",
+    "target": "target/footnote.xml",
+    "status": "pending",
+    "reason": "C9"
+  },
+  "images": {
+    "source": "source/images.md",
+    "target": "target/images.xml",
+    "status": "pending",
+    "reason": "C13"
+  },
+  "images/images": {
+    "source": "source/images/images.md",
+    "target": "target/images/images.xml",
+    "status": "pending",
+    "reason": "C13"
+  },
+  "macro": {
+    "source": "source/macro.md",
+    "target": "target/macro.xml",
+    "status": "pending",
+    "reason": "C9"
+  },
+  "math": {
+    "source": "source/math.md",
+    "target": "target/math.xml",
+    "status": "pending",
+    "reason": "post-MVP"
+  },
+  "mermaid": {
+    "source": "source/mermaid.md",
+    "target": "target/mermaid.xml",
+    "status": "pending",
+    "reason": "C17"
+  },
+  "missing": {
+    "source": "source/missing.md",
+    "target": "target/missing.xml",
+    "status": "pending",
+    "reason": "C12"
+  },
+  "panel": {
+    "source": "source/admonition.md",
+    "target": "target/panel.xml",
+    "status": "pending",
+    "reason": "post-MVP"
+  },
+  "plantuml": {
+    "source": "source/plantuml.md",
+    "target": "target/plantuml.xml",
+    "status": "pending",
+    "reason": "post-MVP"
+  },
+  "sections": {
+    "source": "source/sections.md",
+    "target": "target/sections.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_nodes": {
+    "source": "source/skip_nodes.md",
+    "target": "target/skip_nodes.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading": {
+    "source": "source/skip_title_heading.md",
+    "target": "target/skip_title_heading.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading_abstract": {
+    "source": "source/skip_title_heading_abstract.md",
+    "target": "target/skip_title_heading_abstract.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading_abstract_removed": {
+    "source": "source/skip_title_heading_abstract.md",
+    "target": "target/skip_title_heading_abstract_removed.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading_frontmatter": {
+    "source": "source/skip_title_heading_frontmatter.md",
+    "target": "target/skip_title_heading_frontmatter.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading_multiple": {
+    "source": "source/skip_title_heading_multiple.md",
+    "target": "target/skip_title_heading_multiple.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading_preserved": {
+    "source": "source/skip_title_heading.md",
+    "target": "target/skip_title_heading_preserved.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "skip_title_heading_removed": {
+    "source": "source/skip_title_heading.md",
+    "target": "target/skip_title_heading_removed.xml",
+    "status": "pending",
+    "reason": "C6"
+  },
+  "status": {
+    "source": "source/status.md",
+    "target": "target/status.xml",
+    "status": "pending",
+    "reason": "post-MVP"
+  },
+  "table": {
+    "source": "source/table.md",
+    "target": "target/table.xml",
+    "status": "pending",
+    "reason": "C15"
+  },
+  "tags": {
+    "source": "source/tags.md",
+    "target": "target/tags.xml",
+    "status": "pending",
+    "reason": "C8"
+  },
+  "tasklist": {
+    "source": "source/tasklist.md",
+    "target": "target/tasklist.xml",
+    "status": "pending",
+    "reason": "C9"
+  },
+  "toc": {
+    "source": "source/toc.md",
+    "target": "target/toc.xml",
+    "status": "pending",
+    "reason": "C9"
+  },
+  "unknown_code_language": {
+    "source": "source/unknown_code_language.md",
+    "target": "target/unknown_code_language.xml",
+    "status": "pending",
+    "reason": "C15"
+  }
+}

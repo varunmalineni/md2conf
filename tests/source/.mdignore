@@ -1,0 +1,8 @@
+# skip comments
+
+docs
+[i][g][n][!abcdefghijklmn]?[e].md*
+anchors.md
+extension.md
+missing.md
+title.md
