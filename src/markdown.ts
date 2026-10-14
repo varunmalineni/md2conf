@@ -130,17 +130,17 @@ function admonition(
   endLine: number,
   silent: boolean,
 ): boolean {
-  // A marker one tab stop into the block belongs to that block's content, not to us.
-  if ((state.sCount[startLine] ?? 0) - state.blkIndent >= ADMONITION_INDENT) {
+  // Python-Markdown looks for `!!!` at the start of a block, so a marker indented into a
+  // block belongs to that block's text. It accepts a marker to the left of the margin,
+  // which is a lazy line, and inside a list item a marker up to one tab stop in, because
+  // Python-Markdown dedents a nested block by a whole tab stop while markdown-it's margin
+  // for a list item is the width of the list marker.
+  const indent = (state.sCount[startLine] ?? 0) - state.blkIndent;
+  if (indent > 0 && !(state.parentType === 'list' && indent < ADMONITION_INDENT)) {
     return false;
   }
   const match = ADMONITION_REGEXP.exec(lineContent(state, startLine));
   if (match === null) {
-    return false;
-  }
-  // Python-Markdown looks for `!!!` at the start of a block, so a marker that runs into
-  // an indented paragraph line stays part of that paragraph.
-  if (silent && (state.sCount[startLine] ?? 0) !== state.blkIndent) {
     return false;
   }
   if (silent) {
@@ -277,7 +277,11 @@ function renderFootnoteOpen(tokens: Token[], idx: number): string {
   return `<li id="fn:${escapeAttribute(label)}">\n`;
 }
 
-function createConverter(): MarkdownItType {
+/**
+ * Builds the converter. Exported for the tests that assert the token stream; the package
+ * entry point does not re-export it.
+ */
+export function createConverter(): MarkdownItType {
   // The default preset (unlike `commonmark`) brings the tables and strikethrough rules
   // upstream enables, `html` keeps inline HTML, `xhtmlOut` closes void elements, and
   // `linkify` matches upstream's `pymdownx.magiclink` autolinks.

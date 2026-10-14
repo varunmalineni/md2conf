@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markdownToHtml } from '../src/markdown.js';
+import { createConverter, markdownToHtml } from '../src/markdown.js';
 
 /**
  * `tests/source/admonition.md` from hunyadi/md2conf (MIT, see NOTICE.md), copied
@@ -350,7 +350,34 @@ describe('admonitions', () => {
     );
   });
 
-  it('leaves a marker that runs into an indented paragraph line as text, as upstream does', () => {
+  it('takes a marker at column 0 that follows a list item, as upstream does', () => {
+    expect(markdownToHtml('- item\n!!! note\n    body\n')).toBe(
+      '<ul>\n<li>item</li>\n</ul>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n',
+    );
+    expect(markdownToHtml('1. item\n!!! note\n    body\n')).toBe(
+      '<ol>\n<li>item</li>\n</ol>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n',
+    );
+  });
+
+  it('takes a marker at column 0 that follows a nested list item', () => {
+    expect(markdownToHtml('- a\n  - b\n!!! note\n    body\n')).toBe(
+      '<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n',
+    );
+  });
+
+  it('leaves a marker indented into the block as a paragraph, as upstream does', () => {
+    // Python-Markdown keeps the indentation of the continuation line and CommonMark
+    // strips it. Upstream renders no admonition for either input, and neither do we.
+    expect(markdownToHtml('   !!! note\n       body\n')).toBe('<p>!!! note\nbody</p>\n');
+    expect(markdownToHtml('>  !!! note\n>      body\n')).toBe(
+      '<blockquote>\n<p>!!! note\nbody</p>\n</blockquote>\n',
+    );
+  });
+
+  it('leaves a marker that runs into an indented paragraph line as text', () => {
     expect(markdownToHtml('- list item\n    !!! note\n        body\n')).toBe(
       '<ul>\n<li>list item\n!!! note\nbody</li>\n</ul>\n',
     );
@@ -518,5 +545,59 @@ describe("upstream's footnote document", () => {
     expect(withoutBlankLines(markdownToHtml(UPSTREAM_FOOTNOTE_SOURCE))).toBe(
       withoutBlankLines(UPSTREAM_FOOTNOTE_HTML),
     );
+  });
+});
+
+describe('token positions inside an admonition', () => {
+  // The body is tokenized in place rather than re-parsed from a dedented copy, so the
+  // tokens inside it carry the line numbers and nesting levels of the document.
+  const source = [
+    'Intro paragraph.',
+    '',
+    '!!! note "Outer"',
+    '    Outer body.',
+    '',
+    '    !!! warning "Inner"',
+    '        Inner body.',
+    '',
+    'After.',
+    '',
+  ].join('\n');
+
+  it('reports document line numbers for every token in the body', () => {
+    const tokens = createConverter().parse(source, {});
+
+    expect(tokens.map((token) => [token.type, token.map])).toEqual([
+      ['paragraph_open', [0, 1]],
+      ['inline', [0, 1]],
+      ['paragraph_close', null],
+      ['admonition_open', [2, 8]],
+      ['admonition_title_open', [2, 3]],
+      ['inline', [2, 3]],
+      ['admonition_title_close', null],
+      ['paragraph_open', [3, 4]],
+      ['inline', [3, 4]],
+      ['paragraph_close', null],
+      ['admonition_open', [5, 8]],
+      ['admonition_title_open', [5, 6]],
+      ['inline', [5, 6]],
+      ['admonition_title_close', null],
+      ['paragraph_open', [6, 7]],
+      ['inline', [6, 7]],
+      ['paragraph_close', null],
+      ['admonition_close', null],
+      ['admonition_close', null],
+      ['paragraph_open', [8, 9]],
+      ['inline', [8, 9]],
+      ['paragraph_close', null],
+    ]);
+  });
+
+  it('nests the tokens of an admonition inside the one that holds it', () => {
+    const tokens = createConverter().parse(source, {});
+
+    expect(tokens.map((token) => token.level)).toEqual([
+      0, 1, 0, 0, 1, 2, 1, 1, 2, 1, 1, 2, 3, 2, 2, 3, 2, 1, 0, 0, 1, 0,
+    ]);
   });
 });
