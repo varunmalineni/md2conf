@@ -85,10 +85,39 @@ const DOCUMENT_PROPERTY_KEYS = new Set([
 ]);
 
 function asRecord(value: JsonValue, key: string): JsonObject {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  if (!isMapping(value)) {
     throw new TypeError(`front-matter key "${key}" must hold a set of key-value pairs`);
   }
   return value;
+}
+
+function isMapping(value: JsonValue): value is JsonObject {
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
+  );
+}
+
+/** Formats a value the way Python's `str()` formats the date and datetime PyYAML resolves to. */
+function formatDate(value: Date): string {
+  const iso = value.toISOString();
+  return iso.endsWith('T00:00:00.000Z')
+    ? iso.slice(0, 10) // str(date)
+    : `${iso.slice(0, 19).replace('T', ' ')}+00:00`; // str(datetime) at UTC
+}
+
+/**
+ * Coerces a front-matter scalar to a string, as cattrs structures a `str` field: `page_id:
+ * 12345` is the page ID 12345, not an error. Upstream builds the string with Python's
+ * `str()`, which writes a boolean as `True`; a boolean reads as `true` here (ADR 0007).
+ */
+function scalarToString(value: JsonValue, key: string): string {
+  if (value instanceof Date) {
+    return formatDate(value);
+  }
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  throw new TypeError(`front-matter key "${key}" must be a string, a number or a boolean`);
 }
 
 function optionalString(source: JsonObject, key: string): string | undefined {
@@ -96,10 +125,7 @@ function optionalString(source: JsonObject, key: string): string | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
-  if (typeof value !== 'string') {
-    throw new TypeError(`front-matter key "${key}" must be a string`);
-  }
-  return value;
+  return scalarToString(value, key);
 }
 
 function optionalInteger(source: JsonObject, key: string): number | undefined {
@@ -107,10 +133,37 @@ function optionalInteger(source: JsonObject, key: string): number | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    throw new TypeError(`front-matter key "${key}" must be an integer`);
+  // Python's `int()`: a float truncates towards zero and a boolean is 1 or 0
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
   }
-  return value;
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0;
+  }
+  if (typeof value === 'string' && /^[+-]?\d+$/.test(value.trim())) {
+    return Number.parseInt(value.trim(), 10);
+  }
+  throw new TypeError(`front-matter key "${key}" must be an integer`);
+}
+
+/** Python's `bool()`: an empty string, an empty collection, zero and NaN are false. */
+function pythonBool(value: JsonValue): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0 && !Number.isNaN(value);
+  }
+  if (typeof value === 'string') {
+    return value.length > 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (value instanceof Date) {
+    return true;
+  }
+  return value === null ? false : Object.keys(value).length > 0;
 }
 
 function optionalBoolean(source: JsonObject, key: string): boolean | undefined {
@@ -118,10 +171,7 @@ function optionalBoolean(source: JsonObject, key: string): boolean | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
-  if (typeof value !== 'boolean') {
-    throw new TypeError(`front-matter key "${key}" must be a boolean`);
-  }
-  return value;
+  return pythonBool(value);
 }
 
 function optionalTags(source: JsonObject, key: string): string[] | undefined {
@@ -129,10 +179,18 @@ function optionalTags(source: JsonObject, key: string): string[] | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
-  if (!Array.isArray(value) || value.some((tag) => typeof tag !== 'string')) {
-    throw new TypeError(`front-matter key "${key}" must be a list of strings`);
+  // cattrs structures a list from a sequence, from the keys of a mapping, or from a single
+  // string; anything else (a number, a date) is not a sequence and is an error
+  if (Array.isArray(value)) {
+    return value.map((tag) => scalarToString(tag, key));
   }
-  return value as string[];
+  if (typeof value === 'string') {
+    return [value];
+  }
+  if (isMapping(value)) {
+    return Object.keys(value);
+  }
+  throw new TypeError(`front-matter key "${key}" must be a list of strings`);
 }
 
 function optionalAlignment(source: JsonObject, key: string): ContentAlignment | undefined {
@@ -225,13 +283,13 @@ function documentPropertiesFromJson(data: JsonObject): DocumentProperties {
 }
 
 export class Scanner {
-  /** Extractes essential properties from a Markdown document. */
+  /** Extracts essential properties from a Markdown document. */
   read(absolutePath: PathLike): ScannedDocument {
     const text = readFileSync(absolutePath, 'utf8');
     return this.parse(text);
   }
 
-  /** Extractes essential properties from a Markdown document. */
+  /** Extracts essential properties from a Markdown document. */
   parse(text: string): ScannedDocument {
     // extract Confluence page ID
     const [pageId, afterPageId] = extractValue(PAGE_ID_REGEXP, text);

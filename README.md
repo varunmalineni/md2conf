@@ -41,8 +41,8 @@ The front-matter keys, with upstream's spelling:
 ---
 # page title; otherwise the first top-level heading is used
 title: 'Example document'
-# Confluence page ID, also accepted as confluence_page_id
-page_id: '19840101'
+# Confluence page ID, also accepted as confluence_page_id; needs no quotes
+page_id: 19840101
 # Confluence space key, also accepted as confluence_space_key
 space_key: SPACE
 # page labels

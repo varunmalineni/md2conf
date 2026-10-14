@@ -8,11 +8,18 @@ import { ImageLayoutOptions, LayoutOptions, TableLayoutOptions } from '../src/op
 class Properties {
   title: string | undefined;
   tags: string[] | undefined;
+  properties: Record<string, string> | undefined;
   layout: LayoutOptions | undefined;
 
-  constructor(init?: { title?: string; tags?: string[]; layout?: LayoutOptions }) {
+  constructor(init?: {
+    title?: string;
+    tags?: string[];
+    properties?: Record<string, string>;
+    layout?: LayoutOptions;
+  }) {
     this.title = init?.title;
     this.tags = init?.tags;
+    this.properties = init?.properties;
     this.layout = init?.layout;
   }
 }
@@ -58,6 +65,32 @@ describe('coalesceDataclass', () => {
     expect(result).toBeInstanceOf(Properties);
     expect(result.layout).toBeInstanceOf(LayoutOptions);
     expect(result.layout?.getImageAlignment()).toBe('left');
+  });
+
+  it('copies a value taken from the source, so the result shares nothing with it', () => {
+    const target = new Properties();
+    const source = new Properties({
+      tags: ['a'],
+      properties: { 'content-appearance-published': 'full-width' },
+      layout: new LayoutOptions(new ImageLayoutOptions('left')),
+    });
+
+    const result = coalesceDataclass(target, source);
+
+    expect(result.tags).not.toBe(source.tags);
+    expect(result.properties).not.toBe(source.properties);
+    expect(result.layout).not.toBe(source.layout);
+    expect(result.layout?.image).not.toBe(source.layout?.image);
+    expect(result.properties).toEqual({ 'content-appearance-published': 'full-width' });
+  });
+
+  it('replaces a mapping field rather than merging it key by key', () => {
+    const target = new Properties({ properties: { kept: 'target' } });
+    const source = new Properties({ properties: { kept: 'source', added: 'source' } });
+
+    const result = coalesceDataclass(target, source);
+
+    expect(result.properties).toEqual({ kept: 'target' });
   });
 
   it('leaves the arguments unchanged', () => {
