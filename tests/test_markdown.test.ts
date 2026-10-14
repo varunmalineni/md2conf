@@ -315,6 +315,78 @@ describe('markdownToHtml', () => {
   });
 });
 
+/**
+ * Link and image URLs, measured against upstream's `markdown_to_html` (md2conf 0.6.4,
+ * Python-Markdown 3.11.1, pymdown-extensions 12.2) on the same input. Upstream writes a
+ * URL into the document as the author wrote it, so every `href` and `src` below is the
+ * string in the Markdown source; markdown-it percent-encodes and punycodes it, which would
+ * send the converter looking for a file that is not there.
+ */
+describe('link and image URLs', () => {
+  it('keeps a destination written in angle brackets, spaces and all', () => {
+    expect(markdownToHtml('[x](<my file.md>)\n')).toBe('<p><a href="my file.md">x</a></p>\n');
+  });
+
+  it('keeps a non-ASCII path and its fragment', () => {
+    expect(markdownToHtml('[x](café.md#Sect)\n')).toBe('<p><a href="café.md#Sect">x</a></p>\n');
+  });
+
+  it('keeps a non-ASCII image source', () => {
+    expect(markdownToHtml('![i](déjà.png)\n')).toBe('<p><img src="déjà.png" alt="i" /></p>\n');
+  });
+
+  it('keeps a non-ASCII reference destination', () => {
+    expect(markdownToHtml('[x][r]\n\n[r]: café.md\n')).toBe('<p><a href="café.md">x</a></p>\n');
+  });
+
+  it('keeps an autolink URL and its text as written', () => {
+    expect(markdownToHtml('<https://e.com/café?q[]=1>\n')).toBe(
+      '<p><a href="https://e.com/café?q[]=1">https://e.com/café?q[]=1</a></p>\n',
+    );
+  });
+
+  it('keeps a linkified URL as written, in the href and in the text', () => {
+    expect(markdownToHtml('bare https://e.com/café end\n')).toBe(
+      '<p>bare <a href="https://e.com/café">https://e.com/café</a> end</p>\n',
+    );
+    expect(markdownToHtml('see https://e.com/a%20b now\n')).toBe(
+      '<p>see <a href="https://e.com/a%20b">https://e.com/a%20b</a> now</p>\n',
+    );
+  });
+
+  it('keeps a non-ASCII host of a mail link out of punycode', () => {
+    expect(markdownToHtml('[x](mailto:me@exämple.com)\n')).toBe(
+      '<p><a href="mailto:me@exämple.com">x</a></p>\n',
+    );
+  });
+
+  it('leaves a destination that is already percent-encoded as it is', () => {
+    expect(markdownToHtml('[x](a%20b.md)\n')).toBe('<p><a href="a%20b.md">x</a></p>\n');
+    expect(markdownToHtml('[x](<a%20b.md>)\n')).toBe('<p><a href="a%20b.md">x</a></p>\n');
+  });
+
+  it('keeps an entity in a destination, as upstream does', () => {
+    expect(markdownToHtml('[x](a&amp;b.md)\n')).toBe('<p><a href="a&amp;b.md">x</a></p>\n');
+  });
+
+  it('rejects the destinations `validateLink` refuses, leaving them as text', () => {
+    expect(markdownToHtml('[x](javascript:alert(1))\n')).toBe('<p>[x](javascript:alert(1))</p>\n');
+    expect(markdownToHtml('[x](vbscript:msgbox(1))\n')).toBe('<p>[x](vbscript:msgbox(1))</p>\n');
+    expect(markdownToHtml('![i](data:text/html;base64,PHNjcmlwdD4=)\n')).toBe(
+      '<p>![i](data:text/html;base64,PHNjcmlwdD4=)</p>\n',
+    );
+  });
+
+  it('escapes `&` and `"` in an attribute, as before', () => {
+    expect(markdownToHtml('[x](https://e.com/?a=1&b=2)\n')).toBe(
+      '<p><a href="https://e.com/?a=1&amp;b=2">x</a></p>\n',
+    );
+    expect(markdownToHtml('![i](déjà.png "a \\" title")\n')).toBe(
+      '<p><img src="déjà.png" alt="i" title="a &quot; title" /></p>\n',
+    );
+  });
+});
+
 describe('admonitions', () => {
   it('titles an admonition with its capitalized type when no title is given', () => {
     expect(markdownToHtml('!!! note\n    body\n')).toBe(

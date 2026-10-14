@@ -1,6 +1,6 @@
 # ADR 0002: markdown-it → XHTML → strict XML DOM → Confluence Storage Format
 
-- Status: Accepted (board accepted the ZER-28 plan, 2026-10-14); amended by ADR 0006 and ADR 0007
+- Status: Accepted (board accepted the ZER-28 plan, 2026-10-14); amended by ADR 0006, ADR 0007 and ADR 0008
 - Context issues: ZER-27 §3.3, ZER-28
 
 ## Context

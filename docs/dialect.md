@@ -8,15 +8,16 @@ If a document hits a row, rewrite it in the form the last column gives. That for
 
 ## Differences in the published page
 
-| ID  | Construct                                                                    | Upstream                                           | Ours                                | Why                                                                                            | Write it as                            | Fixture |
-| --- | ---------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- | ------- |
-| D1  | Paragraph after a blank line, indented less than 4 spaces, under a list item | Ends the list                                      | Stays in the item                   | Python-Markdown continues an item only at 4 spaces; CommonMark at the item's content column    | Indent the paragraph 4 spaces          | —       |
-| D2  | Nested list indented 2 or 3 spaces                                           | Not nested                                         | Nested                              | Same as D1                                                                                     | Indent nested lists 4 spaces           | —       |
-| D3  | Top-level list items indented 1 to 3 spaces, with a nested list at 4         | Nested                                             | The nested line is text of the item | Python-Markdown counts 4 spaces from the line start; CommonMark from the item's content column | Start top-level items at column 0      | —       |
-| D4  | List directly after a paragraph line, with no blank line                     | Paragraph text                                     | A list                              | CommonMark lets a list interrupt a paragraph                                                   | Put a blank line before the list       | —       |
-| D5  | List of the other type (`1.` and `-`) directly after a list                  | Text of the last item, or items of the nested list | A new list                          | `sane_lists` upstream; CommonMark starts a new list on a type change                           | Put a blank line between the two lists | —       |
-| D6  | Blank line between some items of a list but not others                       | Only items next to a blank line get `<p>`          | Every item gets `<p>`               | CommonMark makes the whole list loose                                                          | Blank lines between all items or none  | —       |
-| D7  | Block quote line without `>` that continues a block inside the quote         | Part of the block                                  | Ends the quote                      | CommonMark continues a quote lazily only for paragraph text                                    | Start every line of the quote with `>` | —       |
+| ID  | Construct                                                                                      | Upstream                                           | Ours                                | Why                                                                                                          | Write it as                            | Fixture |
+| --- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------- | ------- |
+| D1  | Paragraph after a blank line, indented less than 4 spaces, under a list item                   | Ends the list                                      | Stays in the item                   | Python-Markdown continues an item only at 4 spaces; CommonMark at the item's content column                  | Indent the paragraph 4 spaces          | —       |
+| D2  | Nested list indented 2 or 3 spaces                                                             | Not nested                                         | Nested                              | Same as D1                                                                                                   | Indent nested lists 4 spaces           | —       |
+| D3  | Top-level list items indented 1 to 3 spaces, with a nested list at 4                           | Nested                                             | The nested line is text of the item | Python-Markdown counts 4 spaces from the line start; CommonMark from the item's content column               | Start top-level items at column 0      | —       |
+| D4  | List directly after a paragraph line, with no blank line                                       | Paragraph text                                     | A list                              | CommonMark lets a list interrupt a paragraph                                                                 | Put a blank line before the list       | —       |
+| D5  | List of the other type (`1.` and `-`) directly after a list                                    | Text of the last item, or items of the nested list | A new list                          | `sane_lists` upstream; CommonMark starts a new list on a type change                                         | Put a blank line between the two lists | —       |
+| D6  | Blank line between some items of a list but not others                                         | Only items next to a blank line get `<p>`          | Every item gets `<p>`               | CommonMark makes the whole list loose                                                                        | Blank lines between all items or none  | —       |
+| D7  | Block quote line without `>` that continues a block inside the quote                           | Part of the block                                  | Ends the quote                      | CommonMark continues a quote lazily only for paragraph text                                                  | Start every line of the quote with `>` | —       |
+| D8  | Destination with a protocol markdown-it refuses (`javascript:`, `data:`, `file:`, `vbscript:`) | A link or an image                                 | The text it was written in          | Python-Markdown has no protocol check; markdown-it refuses the link and leaves its source as text (ADR 0008) | Do not link to such a destination      | —       |
 
 The fixture column names the upstream golden fixture in `tests/fixtures/manifest.json` that shows the row. `—` means no upstream fixture is known to hit the row yet.
 
@@ -101,6 +102,20 @@ Upstream: `a` and `b` are wrapped in `<p>`, `c` is not. Ours: all three are wrap
 
 Upstream: `body` is the admonition's body, inside the quote. Ours: the admonition is empty, and `body` is a code block after the quote.
 
+### D8. Destination with a refused protocol
+
+```text
+[x](javascript:alert(1))
+```
+
+```text
+![i](data:text/html;base64,PHNjcmlwdD4=)
+```
+
+Upstream: `<a href="javascript:alert(1)">x</a>`, and an `<img>` with the `data:` source. Ours: the text `[x](javascript:alert(1))` and `![i](data:text/html;base64,PHNjcmlwdD4=)`.
+
+Python-Markdown writes the destination into the page whatever protocol it names, while markdown-it refuses the link and leaves its source as text. We keep the refusal (ADR 0008).
+
 ## Differences that do not change the page
 
 The published page is the same, but the HTML or storage-format XML differs. They matter to anyone comparing our output with upstream's byte for byte.
@@ -114,7 +129,7 @@ The published page is the same, but the HTML or storage-format XML differs. They
 
 ## Constructs with no row
 
-Footnotes, alerts and task lists convert as upstream does (ADR 0007 §5 and §6).
+Footnotes, alerts and task lists convert as upstream does (ADR 0007 §5 and §6). Link and image URLs convert as upstream does as well, apart from the protocols row D8 records (ADR 0008).
 
 ## Adding a row
 

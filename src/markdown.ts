@@ -14,6 +14,7 @@
  * @see https://github.com/hunyadi/md2conf
  * @see docs/adr/0002-markdown-parser-and-conversion-pipeline.md
  * @see docs/adr/0007-markdown-plugins-follow-upstream-vocabulary.md
+ * @see docs/adr/0008-link-and-image-urls-as-written.md
  *
  * `markdown_with_line_numbers` (`--line-numbers`) and emoji rendering are post-MVP and
  * are not ported yet; the ZER-28 plan lists both as non-goals.
@@ -489,6 +490,13 @@ export function createConverter(): MarkdownItType {
   const md = new MarkdownIt({ html: true, xhtmlOut: true, linkify: true }).use(footnote);
   // Python-Markdown has no inline footnote syntax, so `^[…]` stays literal text.
   md.inline.ruler.disable('footnoteInline');
+
+  // Python-Markdown writes a link or image URL into the document as the author wrote it and
+  // escapes it only when it serializes the attribute. markdown-it percent-encodes and
+  // punycodes it instead, so `converter.ts` would resolve `my%20file.md` or `caf%C3%A9.md`
+  // on disk; keeping the URL as written is what makes the two behave the same.
+  md.normalizeLink = (url) => url;
+  md.normalizeLinkText = (url) => url;
 
   md.block.ruler.before('fence', 'admonition', admonition, {
     alt: ['paragraph', 'reference', 'blockquote', 'list'],
