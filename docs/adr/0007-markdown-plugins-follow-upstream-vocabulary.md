@@ -1,7 +1,7 @@
 # ADR 0007: Alerts, task lists and footnotes render in upstream's element vocabulary
 
 - Status: Accepted (Tech Lead ruling on ZER-53, 2026-10-14)
-- Context issues: ZER-31, ZER-53; review of PR #4 (finding 5)
+- Context issues: ZER-31, ZER-53, ZER-56; review of PR #4 (finding 5)
 - Amends: ADR 0002, ADR 0005
 
 ## Context
@@ -30,6 +30,11 @@ For footnotes the plugin's default output loses information as well as shape. Up
    The exact attribute set and whitespace come from running upstream's Python-Markdown configuration on `tests/source/footnote.md`, not from this ADR.
 4. **Inline footnotes (`^[text]`) are disabled** (`footnoteInline` rule). Python-Markdown has no such syntax, and ADR 0006 adds no behaviour.
 5. **Result:** the `alert`, `tasklist` and `footnote` golden fixtures are `match` in `tests/fixtures/manifest.json`, and `docs/dialect.md` gets no rows for these constructs. If a fixture can't match, the Engineer raises it on the issue before adding an `override`. One known case is footnote numbering when references come in a different order from definitions, if the plugin and Python-Markdown disagree there.
+6. **Footnote list: replace the plugin's `footnoteTail` core rule** (amendment, ZER-56). ZER-31 measured two cases where the plugin and Python-Markdown disagree. Neither appears in `tests/source/footnote.md`:
+   - **Numbering.** Upstream numbers footnotes and lists them in **definition** order. The plugin numbers by first reference.
+   - **Unreferenced definitions.** Upstream keeps a definition that nothing references, with one back-reference to `#fnref:LABEL`. The plugin drops it.
+
+   Both choices are made in one place, the plugin's `footnoteTail` core rule (it runs after `inline`), and not in its parser. `src/markdown.ts` replaces that rule by name (`md.core.ruler.at('footnoteTail', …)`). The replacement collects the `footnote_reference_open`…`footnote_reference_close` groups in document order and numbers each label by its position in that order. It writes that number into `meta.id` of every `footnote_ref`, including references inside definitions. It then emits the same `footnote_block_open`/`footnote_open`/`footnote_anchor`/`footnote_close` tokens the plugin emits, one per definition, with `max(references, 1)` anchors. The plugin still parses definitions and references and counts repeated references (`subId`). A spike against `@mdit/plugin-footnote` 1.1.2 produced upstream's numbering, order and unreferenced-definition output for both measured cases. `docs/dialect.md` still gets no footnote rows.
 
 ## Amendments to earlier ADRs
 
@@ -41,11 +46,13 @@ For footnotes the plugin's default output loses information as well as shape. Up
 
 - **Keep all three plugins and adapt the converter (option b on ZER-53).** No renderer code, but `_transform_github_alert`, `_transform_tasklist` and both footnote transforms would diverge from `converter.py`. The GitLab alert path would need writing anyway. Every fixture for these constructs would become an `override`, and footnote anchor names would differ from upstream's in published pages. Rejected under ADR 0006.
 - **Write our own footnote parser that mimics Python-Markdown.** Gives the same HTML as decision 3, but it also reimplements definition parsing, label normalisation, numbering and repeated-reference tracking that the plugin already does correctly. More code to test for no difference in output. Rejected.
+- **Record the two footnote differences from decision 6 in `docs/dialect.md` (ZER-56).** No code, but a published page's footnote numbers would then depend on reference order, which breaks ADR 0006 for any document that references footnotes in a different order from their definitions. That is common, because authors add notes over time. Rejected. Fixing it costs one core rule of about 40 lines.
 - **Keep the plugin's footnote output and map numeric ids back to labels in the converter.** The label isn't in the HTML, so the converter can't recover it without a side channel from the renderer. That is an abstraction upstream doesn't have. Rejected.
 
 ## Consequences
 
 - C8 and C9 port `_transform_github_alert`, `_transform_gitlab_alert`, `_transform_tasklist`, `_transform_footnote_ref` and `_transform_footnote_def` from `converter.py` as they are.
+- `src/markdown.ts` also owns the `footnoteTail` core rule (decision 6). It depends on the plugin's token types and `meta` fields, as the render rules do.
 - `src/markdown.ts` owns about six small render rules for footnotes. They are tested against Python-Markdown's HTML for the footnote fixture.
 - Two fewer runtime dependencies.
 - If a later `@mdit/plugin-footnote` release renames its tokens or `meta` fields, our render rules break loudly in the footnote fixture test, not silently.
