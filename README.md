@@ -36,6 +36,23 @@ $ npm run format     # Prettier, rewriting in place
 
 Architecture and tooling decisions are recorded as ADRs in [docs/adr](docs/adr).
 
+### Golden fixtures
+
+Upstream's golden fixtures are copied verbatim from [hunyadi/md2conf](https://github.com/hunyadi/md2conf)
+at `70aa709`: [tests/source](tests/source) holds the Markdown inputs with their assets,
+[tests/target](tests/target) the Confluence Storage Format XML upstream produces, and upstream's
+licence sits beside them in [tests/UPSTREAM-LICENSE](tests/UPSTREAM-LICENSE). Do not edit them; a
+difference is recorded instead.
+
+[tests/manifest.json](tests/manifest.json) gives every fixture one status
+([ADR 0003](docs/adr/0003-markdown-dialect-and-recorded-differences.md) §3):
+
+- `match`: our output must equal the fixture upstream left in `tests/target`;
+- `override`: a permanent difference, with a row in [docs/dialect.md](docs/dialect.md);
+- `pending`: not implemented yet, and the entry names the issue that lands it.
+
+A converter issue moves its own fixtures from `pending` to `match` or `override`.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).

@@ -1,3 +1,5 @@
 coverage/
 dist/
 package-lock.json
+tests/source/
+tests/target/

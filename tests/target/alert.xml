@@ -1,0 +1,74 @@
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This page has been generated with a tool.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h2>Alerts</h2>
+<h3>GitHub</h3>
+<p>Note:</p>
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Useful information that users should know, even when skimming content.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Tip:</p>
+<ac:structured-macro ac:name="tip" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Helpful advice for doing things better or more easily.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Important:</p>
+<ac:structured-macro ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Key information users need to know to achieve their goal.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Warning:</p>
+<ac:structured-macro ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Urgent info that needs immediate user attention to avoid problems.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Caution:</p>
+<ac:structured-macro ac:name="warning" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Advises about risks or negative outcomes of certain actions.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Consecutive alerts, written back-to-back with no blank line between them:</p>
+<ac:structured-macro ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Status: work in progress.</p>
+    <p>This paragraph belongs to the warning.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Source of truth: this page is generated from the source repo.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>GitLab</h3>
+<p>Flag:</p>
+<ac:structured-macro ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>The availability of this feature is controlled by a feature flag. For more information, see the history. This feature is available for testing, but <em>not ready for production use</em>.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Note:</p>
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This is something to note.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Warning:</p>
+<ac:structured-macro ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This is something to be warned about.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Disclaimer:</p>
+<ac:structured-macro ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This page contains information related to upcoming products, features, and functionality. It is important to note that the information presented is for <em>informational purposes</em> only. Please do not rely on this information for purchasing or planning purposes.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>

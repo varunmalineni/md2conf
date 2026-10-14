@@ -1,0 +1,60 @@
+---
+layout:
+  table:
+    width: 640
+---
+
+<!-- confluence-page-id: 00000000000 -->
+
+## Tables
+
+Simple table
+
+| Arabic | Roman     |
+| ------ | --------- |
+| 1      | I         |
+| 5      | V         |
+| 10     | X         |
+| 50     | L         |
+| 100    | C         |
+| 500    | D         |
+| 1000   | M         |
+| 1986   | MCMLXXXVI |
+
+Aligned cells
+
+| Left | Center | Right |
+|:-----|:------:|------:|
+| Bal  | Közép  | Jobb  |
+
+Multi-line cells
+
+| Name | Description                 |
+| ---- | --------------------------- |
+| Data | A multi-line<br/>paragraph. |
+
+Table with no header row
+
+|     |       |
+| --- | ----- |
+| Key | Value |
+
+Table with header column
+
+| Number | | English | Hungarian |
+| ------ |-| ------- | --------- |
+| 1      | | one     | egy       |
+| 2      | | two     | kettő     |
+| 3      | | three   | három     |
+
+Table with image-only cell
+
+|       |                                                                                                          |
+| ----- | -------------------------------------------------------------------------------------------------------- |
+| Image | <img src="http://confluence.atlassian.com/images/logo/confluence_48_trans.png" width="24" height="24" /> |
+
+Table with image-only header cell
+
+| <img src="http://confluence.atlassian.com/images/logo/confluence_48_trans.png" width="24" height="24" /> | Value   |
+| -------------------------------------------------------------------------------------------------------- | ------- |
+| Icon                                                                                                     | Example |
