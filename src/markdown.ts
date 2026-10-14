@@ -117,21 +117,37 @@ function capitalize(word: string): string {
 }
 
 /**
+ * First line of the innermost list item markdown-it is currently inside.
+ *
+ * The item's `list_item_open` token is already on the token stream, with the line of its
+ * marker as `map[0]`. `bsCount` is no help: markdown-it's list rule only reads it, and
+ * only the block quote rule sets it.
+ */
+function itemStartLine(state: StateBlock): number | undefined {
+  for (let index = state.tokens.length - 1; index >= 0; index -= 1) {
+    if (state.tokens[index]?.type === 'list_item_open') {
+      return state.tokens[index]?.map?.[0];
+    }
+  }
+  return undefined;
+}
+
+/**
  * True if a blank line inside the enclosing list item precedes this line.
  *
  * Python-Markdown dedents a block that follows a blank line by one tab stop, so a marker
  * in such a block reaches column 0 and opens a block. A marker in the item's *first*
- * block is a lazy line that keeps its indentation, and stays text.
+ * block is a lazy line that keeps its indentation, and stays text, whatever precedes the
+ * list: the walk therefore stops at the line of the item's marker.
  */
 function followsBlankLineInItem(state: StateBlock, line: number): boolean {
-  for (let index = line - 1; index >= 0; index -= 1) {
+  const itemStart = itemStartLine(state);
+  if (itemStart === undefined) {
+    return false;
+  }
+  for (let index = line - 1; index > itemStart; index -= 1) {
     if (state.isEmpty(index)) {
       return true;
-    }
-    // `bsCount` is set on the line that opens a list item or a block quote, which ends
-    // the walk into the block the marker is in.
-    if (state.bsCount[index] !== 0 || (state.sCount[index] ?? 0) < state.blkIndent) {
-      return false;
     }
   }
   return false;

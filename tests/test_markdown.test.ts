@@ -368,6 +368,25 @@ describe('admonitions', () => {
     );
   });
 
+  it('leaves a marker in an item’s first block as text whatever precedes the list, as upstream does', () => {
+    // A blank line earlier in the document belongs to whatever came before the list, not to
+    // the item: only a blank line inside the item makes the marker a later block.
+    expect(markdownToHtml('p\n\n- a\n    !!! note\n        body\n')).toBe(
+      '<p>p</p>\n<ul>\n<li>a\n!!! note\nbody</li>\n</ul>\n',
+    );
+    for (const source of [
+      'p\n\n- a\n\t!!! note\n\t    body\n',
+      'p\n\n1. a\n    !!! note\n        body\n',
+      '# h\n\n- a\n    !!! note\n        body\n',
+      '> q\n\n- a\n    !!! note\n        body\n',
+      '- a\n\n- b\n    !!! note\n        body\n',
+      '- a\n- b\n\n- c\n    !!! note\n        body\n',
+      '- a\n\n  - b\n    !!! note\n        body\n',
+    ]) {
+      expect(markdownToHtml(source)).not.toContain('admonition');
+    }
+  });
+
   it('holds an admonition in a list item whose margin is four columns, as upstream does', () => {
     expect(markdownToHtml('1.  a\n\n    !!! note\n        body\n')).toBe(
       '<ol>\n<li>\n<p>a</p>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
@@ -433,10 +452,14 @@ describe('admonitions', () => {
     expect(markdownToHtml('1. a\n   - b\n\n        !!! note\n            body\n')).toContain(
       '<div class="admonition note">',
     );
-    // A block quote inside a list item closes at the marker upstream; CommonMark keeps the
-    // marker inside the quote's paragraph.
-    expect(markdownToHtml('1. a\n\n    > q\n    !!! note\n      body\n')).not.toContain(
-      'admonition',
+  });
+
+  it('opens a block at the margin of a quote inside a list item, as upstream does', () => {
+    // This was a difference until the walk that decides a later block stopped at the item's
+    // own marker line; the row for it in ZER-62 can go.
+    expect(markdownToHtml('1. a\n\n    > q\n    !!! note\n      body\n')).toBe(
+      '<ol>\n<li>\n<p>a</p>\n<blockquote>\n<p>q</p>\n</blockquote>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n<p>body</p>\n</li>\n</ol>\n',
     );
   });
 
