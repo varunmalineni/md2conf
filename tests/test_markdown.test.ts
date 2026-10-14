@@ -383,6 +383,29 @@ describe('admonitions', () => {
     );
   });
 
+  it('holds a nested admonition at the body margin inside a list item, as upstream does', () => {
+    expect(markdownToHtml('- a\n\n    !!! note\n        !!! note\n')).toBe(
+      '<ul>\n<li>\n<p>a</p>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- a\n\n    !!! note\n        !!! note\n        !!! note\n')).toBe(
+      '<ul>\n<li>\n<p>a</p>\n<div class="admonition note">\n<p class="admonition-title">Note</p>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n' +
+        '<div class="admonition note">\n<p class="admonition-title">Note</p>\n</div>\n</div>\n</li>\n</ul>\n',
+    );
+  });
+
+  it('takes a marker after a paragraph in a later block of a list item, as upstream does', () => {
+    expect(markdownToHtml('- a\n\n    p\n    !!! note\n        body\n')).toBe(
+      '<ul>\n<li>\n<p>a</p>\n<p>p</p>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n</li>\n</ul>\n',
+    );
+    expect(markdownToHtml('- a\n\n    p\n\t!!! note\n\t    body\n')).toBe(
+      '<ul>\n<li>\n<p>a</p>\n<p>p</p>\n<div class="admonition note">\n' +
+        '<p class="admonition-title">Note</p>\n<p>body</p>\n</div>\n</li>\n</ul>\n',
+    );
+  });
+
   it('holds an admonition that closes a nested list, as upstream does', () => {
     expect(markdownToHtml('- a\n    - b\n    !!! note\n        body\n')).toBe(
       '<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n<div class="admonition note">\n' +

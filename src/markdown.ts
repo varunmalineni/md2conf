@@ -117,6 +117,27 @@ function capitalize(word: string): string {
 }
 
 /**
+ * True if a blank line inside the enclosing list item precedes this line.
+ *
+ * Python-Markdown dedents a block that follows a blank line by one tab stop, so a marker
+ * in such a block reaches column 0 and opens a block. A marker in the item's *first*
+ * block is a lazy line that keeps its indentation, and stays text.
+ */
+function followsBlankLineInItem(state: StateBlock, line: number): boolean {
+  for (let index = line - 1; index >= 0; index -= 1) {
+    if (state.isEmpty(index)) {
+      return true;
+    }
+    // `bsCount` is set on the line that opens a list item or a block quote, which ends
+    // the walk into the block the marker is in.
+    if (state.bsCount[index] !== 0 || (state.sCount[index] ?? 0) < state.blkIndent) {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
  * True if the line may open a block whose first line is an admonition marker.
  *
  * Python-Markdown matches `!!!` at the start of a block, and its list items decide what a
@@ -138,10 +159,19 @@ function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
     return true;
   }
   if (state.listIndent >= 0) {
+    if (state.parentType === 'admonition') {
+      // A nested admonition at the body's margin is a block of its own, as it is
+      // outside a list.
+      return relative === 0;
+    }
     if (columns < ADMONITION_INDENT || columns % ADMONITION_INDENT !== 0) {
       return false;
     }
-    return (state.parentType === 'list' && relative >= 0) || relative < 0;
+    return (
+      (state.parentType === 'list' && relative >= 0) ||
+      relative < 0 ||
+      followsBlankLineInItem(state, line)
+    );
   }
   return relative === 0;
 }
