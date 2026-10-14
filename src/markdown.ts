@@ -53,14 +53,16 @@ function isSpace(code: number): boolean {
   return code === SPACE || code === TAB;
 }
 
-/** Returns a line with its leading whitespace removed, whatever mix of spaces and tabs. */
+/**
+ * Returns a line without its indentation, whatever mix of spaces and tabs.
+ *
+ * A list item's first line starts at the text that follows the item marker, not at the
+ * marker itself, which is where markdown-it points `tShift`; the rule reads every line
+ * from there.
+ */
 function lineContent(state: StateBlock, line: number): string {
   const end = state.eMarks[line] ?? 0;
-  let pos = state.bMarks[line] ?? 0;
-  while (pos < end && isSpace(state.src.charCodeAt(pos))) {
-    pos += 1;
-  }
-  return state.src.slice(pos, end);
+  return state.src.slice((state.bMarks[line] ?? 0) + (state.tShift[line] ?? 0), end);
 }
 
 /**
@@ -134,11 +136,24 @@ function itemStartLine(state: StateBlock): number | undefined {
 }
 
 /**
+ * True if the line is the line the innermost list item starts on, and so opens the item's
+ * first block.
+ *
+ * Python-Markdown parses the item's text as one block, in which the marker line begins at
+ * the item's margin, so a marker on it opens a block there as it does in a document of its
+ * own. markdown-it tokenizes the item's content with every block rule, the item's marker
+ * line among them.
+ */
+function isItemFirstLine(state: StateBlock, line: number): boolean {
+  return line === itemStartLine(state);
+}
+
+/**
  * True if a blank line inside the enclosing list item precedes this line.
  *
  * Python-Markdown dedents a block that follows a blank line by one tab stop, so a marker
- * in such a block reaches column 0 and opens a block. A marker in the item's *first*
- * block is a lazy line that keeps its indentation, and stays text, whatever precedes the
+ * in such a block reaches column 0 and opens a block. A marker on a later line of the
+ * item's first block runs into the text above it and stays text, whatever precedes the
  * list: the walk therefore stops at the line of the item's marker.
  */
 function followsBlankLineInItem(state: StateBlock, line: number): boolean {
@@ -164,6 +179,8 @@ function followsBlankLineInItem(state: StateBlock, line: number): boolean {
  * which leaves the marker left of the item's margin.
  *
  * - a marker at column 0 ends the list or quote around it and opens a block of its own;
+ * - a marker on the first line of a list item opens the item's first block at the item's
+ *   margin, where Python-Markdown has already stripped the item marker;
  * - a marker inside a list item opens a nested block when it is indented by whole tab
  *   stops and either starts a block or falls outside the item being closed;
  * - everywhere else the marker has to sit at the margin of the block it opens, so a
@@ -181,6 +198,10 @@ function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
       // outside a list.
       return relative === 0;
     }
+    if (isItemFirstLine(state, line)) {
+      // The marker opens the item's first block, whose margin is the item's own.
+      return relative === 0;
+    }
     if (columns < ADMONITION_INDENT || columns % ADMONITION_INDENT !== 0) {
       return false;
     }
@@ -191,6 +212,109 @@ function startsAdmonitionBlock(state: StateBlock, line: number): boolean {
     );
   }
   return relative === 0;
+}
+
+/**
+ * The column a list marker sits at.
+ *
+ * markdown-it reports the content of a line at the item's margin, past the marker, and
+ * rewrites the line's own indent to that margin; Python-Markdown reads the marker where
+ * the author wrote it.
+ */
+function markerColumn(state: StateBlock, line: number): number {
+  const end = (state.bMarks[line] ?? 0) + (state.tShift[line] ?? 0);
+  let pos = state.bMarks[line] ?? 0;
+  let columns = 0;
+  while (pos < end) {
+    const code = state.src.charCodeAt(pos);
+    if (code === TAB) {
+      columns += 4 - (columns % 4);
+    } else if (code === SPACE) {
+      columns += 1;
+    } else {
+      break;
+    }
+    pos += 1;
+  }
+  return columns;
+}
+
+/**
+ * The column Python-Markdown counts the lines of a list item's first block from.
+ *
+ * Its `indent` processor removes one tab stop from a block that starts a tab stop or more
+ * into the line before the list processor reads the block, and the list processor then
+ * drops the item marker from the item's own first line only, so the lines after it keep
+ * the columns of the source. The body of an admonition that opens the item's first block
+ * therefore starts one tab stop into the document, and one more for every whole tab stop
+ * its list is indented by.
+ */
+function itemBodyColumn(state: StateBlock): number {
+  for (let index = state.tokens.length - 1; index >= 0; index -= 1) {
+    const token = state.tokens[index];
+    if (token?.type === 'bullet_list_open' || token?.type === 'ordered_list_open') {
+      const columns = markerColumn(state, token.map?.[0] ?? 0);
+      return columns - (columns % ADMONITION_INDENT);
+    }
+  }
+  return 0;
+}
+
+/**
+ * True if Python-Markdown wraps the paragraphs it parses inside the list item the marker
+ * opens in a `<p>`.
+ *
+ * It parses a whole item in the `list` state, which wraps nothing there, so the body of an
+ * admonition that opens the item's first block is text. The first item of a list that
+ * continues the list above it is parsed in the `looselist` state instead, and keeps its
+ * `<p>`.
+ */
+function wrapsItemParagraphs(state: StateBlock): boolean {
+  const itemStart = itemStartLine(state);
+  if (itemStart === undefined || itemStart === 0 || !state.isEmpty(itemStart - 1)) {
+    return false;
+  }
+  // The item follows a blank line, which leaves its paragraphs wrapped only when its list
+  // has an item already, that is when it continues the list above it rather than starting
+  // one.
+  for (let index = state.tokens.length - 1; index >= 0; index -= 1) {
+    const type = state.tokens[index]?.type;
+    if (type === 'list_item_open') {
+      return true;
+    }
+    if (type === 'bullet_list_open' || type === 'ordered_list_open') {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Leaves the paragraphs Python-Markdown holds as the text of a list item unwrapped.
+ *
+ * markdown-it drops the `<p>` of the blocks a tight item holds directly; the blocks an
+ * admonition holds are a level deeper, where markdown-it keeps them. A block quote sets a
+ * state of its own, so the paragraphs inside one keep theirs.
+ */
+function unwrapParagraphs(state: StateBlock, from: number): void {
+  let quoted = 0;
+  for (let index = from; index < state.tokens.length; index += 1) {
+    const token = state.tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+    if (token.type === 'blockquote_open') {
+      quoted += 1;
+    } else if (token.type === 'blockquote_close') {
+      quoted -= 1;
+    } else if (quoted === 0 && token.type === 'paragraph_open') {
+      token.hidden = true;
+      const close = state.tokens[index + 2];
+      if (close?.type === 'paragraph_close') {
+        close.hidden = true;
+      }
+    }
+  }
 }
 
 /**
@@ -218,14 +342,24 @@ function admonition(
     return true;
   }
 
+  // Python-Markdown takes the body out of the string it is parsing, which starts at the
+  // column the marker sits at. A marker in an item's first block is the one exception:
+  // Python-Markdown drops the item marker from that line and leaves the lines after it as
+  // the author wrote them, so there the body is counted from `itemBodyColumn`, and a blank
+  // line ends the body as it ends any other block.
+  const itemBlock = isItemFirstLine(state, startLine);
+  const bodyColumn = itemBlock ? itemBodyColumn(state) : (state.sCount[startLine] ?? 0);
   const bodyStart = startLine + 1;
   let nextLine = bodyStart;
   while (nextLine < endLine) {
     if (state.isEmpty(nextLine)) {
+      if (itemBlock) {
+        break;
+      }
       nextLine = state.skipEmptyLines(nextLine + 1);
       continue;
     }
-    if ((state.sCount[nextLine] ?? 0) - state.blkIndent < ADMONITION_INDENT) {
+    if ((state.sCount[nextLine] ?? 0) - bodyColumn < ADMONITION_INDENT) {
       break;
     }
     nextLine += 1;
@@ -250,8 +384,10 @@ function admonition(
   state.parentType = 'admonition';
   state.lineMax = nextLine;
   // The body starts at the marker's own margin, so nested rules see the same relative
-  // indentation they would see in a document of its own.
-  state.blkIndent = state.sCount[startLine] ?? 0;
+  // indentation they would see in a document of its own. The body of an item's first
+  // block starts at the column its string had, so that what is left of the author's
+  // indentation stays in the text, as it does upstream.
+  state.blkIndent = bodyColumn;
 
   const { className, title } = admonitionClassAndTitle(match);
   const open = state.push('admonition_open', 'div', 1);
@@ -270,7 +406,11 @@ function admonition(
     state.push('admonition_title_close', 'p', -1);
   }
 
+  const bodyTokens = state.tokens.length;
   state.md.block.tokenize(state, bodyStart, nextLine);
+  if (itemBlock && !wrapsItemParagraphs(state)) {
+    unwrapParagraphs(state, bodyTokens);
+  }
 
   state.push('admonition_close', 'div', -1);
   for (let i = 0; i < oldTShift.length; i++) {
